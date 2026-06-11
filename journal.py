@@ -6,11 +6,14 @@ Format: lista de intrari ordonate dupa data.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-_CACHE_DIR = Path(__file__).parent / "cache"
-_CACHE_DIR.mkdir(exist_ok=True)
+# STORAGE_DIR env var → Railway persistent volume (/data)
+# Locally falls back to cache/ directory
+_CACHE_DIR = Path(os.getenv("STORAGE_DIR", str(Path(__file__).parent / "cache")))
+_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _path(chat_id: int) -> Path:

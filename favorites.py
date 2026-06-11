@@ -6,10 +6,11 @@ Format: {"Acasa": {"lat": 47.01, "lng": 21.93}, ...}
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
-_CACHE_DIR = Path(__file__).parent / "cache"
-_CACHE_DIR.mkdir(exist_ok=True)
+_CACHE_DIR = Path(os.getenv("STORAGE_DIR", str(Path(__file__).parent / "cache")))
+_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 _MAX = 10  # maxim favorite per utilizator
 
 
