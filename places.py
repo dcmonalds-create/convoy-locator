@@ -38,6 +38,9 @@ def search(lat: float, lng: float, category: str, lang: str = "hu") -> list[dict
     if not cat:
         return []
 
+    if category == "mol":
+        return _search_mol(lat, lng, lang)
+
     params: dict = {
         "location": f"{lat},{lng}",
         "radius": RADIUS_M,
@@ -52,11 +55,6 @@ def search(lat: float, lng: float, category: str, lang: str = "hu") -> list[dict
     resp.raise_for_status()
     data = resp.json()
 
-    # Colectam TOATE rezultatele returnate de API (pana la 20),
-    # sortam noi dupa distanta, apoi returnam primele 5.
-    # NU taia la [:5] inainte de sortare — API-ul sorteaza dupa
-    # popularitate, nu dupa distanta, si cel mai apropiat poate fi
-    # pe pozitia 10+ in raspuns.
     results = []
     for place in data.get("results", []):
         loc = place["geometry"]["location"]
@@ -71,10 +69,49 @@ def search(lat: float, lng: float, category: str, lang: str = "hu") -> list[dict
         })
 
     results.sort(key=lambda x: x["distance_km"])
+    return results[:5]
 
-    # Filtru strict pe nume — elimina benzinarii non-MOL returnate gresit de API
-    if category == "mol":
-        results = [r for r in results if "mol" in r["name"].lower()]
+
+def _search_mol(lat: float, lng: float, lang: str) -> list[dict]:
+    """
+    MOL-specifikus keresés: először keyword-del próbál, ha üres →
+    broad gas_station keresés + névszűrés. Ez megbízhatóbban
+    találja meg a közeli MOL kutakat.
+    """
+    key = os.environ["GOOGLE_PLACES_API_KEY"]
+
+    def _fetch(keyword: str | None) -> list[dict]:
+        params: dict = {
+            "location": f"{lat},{lng}",
+            "radius": RADIUS_M,
+            "type": "gas_station",
+            "language": lang,
+            "key": key,
+        }
+        if keyword:
+            params["keyword"] = keyword
+        resp = httpx.get(_BASE, params=params, timeout=10)
+        resp.raise_for_status()
+        out = []
+        for place in resp.json().get("results", []):
+            loc = place["geometry"]["location"]
+            plat, plng = loc["lat"], loc["lng"]
+            out.append({
+                "name":         place.get("name", "?"),
+                "address":      place.get("vicinity", ""),
+                "rating":       place.get("rating"),
+                "maps_url":     f"https://maps.google.com/?q={plat},{plng}",
+                "distance_km":  _haversine(lat, lng, plat, plng),
+            })
+        out.sort(key=lambda x: x["distance_km"])
+        return [r for r in out if "mol" in r["name"].lower()]
+
+    # 1. Próba: Places API keyword=MOL (gyors, de néha kihagyja)
+    results = _fetch("MOL")
+
+    # 2. Fallback: összes benzinkút lekérése + névszűrés
+    if not results:
+        results = _fetch(None)
 
     return results[:5]
 
