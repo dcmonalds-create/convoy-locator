@@ -137,7 +137,8 @@ html, body {
   padding: 0;
   font-family: inherit;
 }
-.nav-btn .nav-icon { font-size: 22px; line-height: 1; }
+.nav-btn .nav-icon { width: 24px; height: 24px; flex-shrink: 0; }
+.nav-btn .nav-icon svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .nav-btn .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
 .nav-btn.active { color: var(--accent); }
 .nav-btn:active { opacity: 0.7; }
@@ -711,23 +712,23 @@ html, body {
   <!-- ── Bottom Navigation ── -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-screen="home" onclick="navTo('home')">
-      <div class="nav-icon">🏠</div>
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></div>
       <div class="nav-label">Főoldal</div>
     </button>
     <button class="nav-btn" data-screen="beststop" onclick="navTo('beststop')">
-      <div class="nav-icon">🛑</div>
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/><line x1="12" y1="2" x2="12" y2="2.01"/></svg></div>
       <div class="nav-label">Best Stop</div>
     </button>
     <button class="nav-btn" data-screen="checklist" onclick="navTo('checklist')">
-      <div class="nav-icon">✅</div>
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8,12 11,15 16,9"/></svg></div>
       <div class="nav-label">Checklist</div>
     </button>
     <button class="nav-btn" data-screen="journal" onclick="navTo('journal')">
-      <div class="nav-icon">📓</div>
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div>
       <div class="nav-label">Napló</div>
     </button>
     <button class="nav-btn" onclick="showLang()">
-      <div class="nav-icon">🌐</div>
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
       <div class="nav-label">Nyelv</div>
     </button>
   </nav>
@@ -1095,7 +1096,11 @@ async function api(path, method, body) {
   const opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(path, opts);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { const j = await r.json(); detail = j.detail || detail; } catch(_) {}
+    throw new Error(detail);
+  }
   return r.json();
 }
 
