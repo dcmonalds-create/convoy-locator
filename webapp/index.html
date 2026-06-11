@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ConvoyLocator</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* ── Design System ──────────────────────────────────────────────────────────── */
+:root {
+  --bg:         #0A0A0B;
+  --surface:    #141416;
+  --surface2:   #1C1C1F;
+  --border:     #2A2A2F;
+  --accent:     #F59E0B;
+  --accent-dim: #78450A;
+  --accent-glow:rgba(245,158,11,0.15);
+  --success:    #22C55E;
+  --danger:     #EF4444;
+  --warn:       #F97316;
+  --text:       #F4F4F5;
+  --text-muted: #71717A;
+  --text-dim:   #3F3F46;
+  --radius:     14px;
+  --radius-sm:  8px;
+  --nav-h:      64px;
+  --header-h:   56px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.header-back {
+  width: 36px; height: 36px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  font-size: 18px;
+  transition: background 0.15s;
+}
+.header-back:active { background: var(--border); }
+.header-back.hidden { visibility: hidden; }
+
+.header-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-title span.badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-glow);
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 20px;
+  padding: 2px 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.header-action {
+  width: 36px; height: 36px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 18px;
+  transition: background 0.15s;
+}
+.header-action:active { background: var(--border); }
+.header-action.hidden { visibility: hidden; }
+
+/* ── Screens ─────────────────────────────────────────────────────────────────── */
+.screen {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--nav-h) + 8px);
+}
+.screen.hidden { display: none; }
+
+/* ── Bottom Navigation ──────────────────────────────────────────────────────── */
+.bottom-nav {
+  height: var(--nav-h);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  flex-shrink: 0;
+  z-index: 10;
+}
+.nav-btn {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  transition: color 0.15s;
+  color: var(--text-muted);
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+}
+.nav-btn .nav-icon { font-size: 22px; line-height: 1; }
+.nav-btn .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
+.nav-btn.active { color: var(--accent); }
+.nav-btn:active { opacity: 0.7; }
+
+/* ── Location Bar ─────────────────────────────────────────────────────────────── */
+.location-bar {
+  margin: 12px 16px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.location-bar:active { border-color: var(--accent); }
+.location-bar.has-location { border-color: var(--success); }
+.location-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.location-dot.active { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.location-dot.loading {
+  background: var(--accent);
+  animation: pulse 1s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.location-text { flex: 1; font-size: 13px; color: var(--text-muted); }
+.location-text.active { color: var(--text); }
+.location-coords { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.location-refresh { font-size: 18px; color: var(--text-dim); flex-shrink: 0; }
+
+/* ── Best Stop Button ────────────────────────────────────────────────────────── */
+.best-stop-btn {
+  margin: 12px 16px 0;
+  background: linear-gradient(135deg, #B45309 0%, #F59E0B 100%);
+  border: none;
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: opacity 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+.best-stop-btn:active { opacity: 0.85; transform: scale(0.98); }
+.best-stop-btn-icon { font-size: 28px; line-height: 1; }
+.best-stop-btn-text { text-align: left; }
+.best-stop-btn-title { font-size: 16px; font-weight: 800; color: #FFF; letter-spacing: -0.3px; }
+.best-stop-btn-sub { font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 2px; }
+
+/* ── Section Label ───────────────────────────────────────────────────────────── */
+.section-label {
+  padding: 16px 16px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Category Grid ───────────────────────────────────────────────────────────── */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 0 16px;
+}
+.cat-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.cat-btn:active { border-color: var(--accent); background: var(--accent-glow); }
+.cat-btn-icon { font-size: 26px; line-height: 1; }
+.cat-btn-label { font-size: 11px; color: var(--text-muted); font-weight: 500; text-align: center; line-height: 1.3; }
+
+/* ── Cards ───────────────────────────────────────────────────────────────────── */
+.results-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  transition: border-color 0.15s;
+}
+.card:active { border-color: var(--accent); }
+
+.card-rank {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.card-rank.gold   { color: #F59E0B; }
+.card-rank.silver { color: #94A3B8; }
+.card-rank.bronze { color: #CD7C4A; }
+
+.card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.card-rating {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.card-address {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.card-dist {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+.card-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.card-meta-row {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-meta-row.missing { color: var(--text-dim); }
+.card-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:active { opacity: 0.75; }
+.btn-primary { background: var(--accent); color: #000; flex: 1; justify-content: center; }
+.btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+/* ── Checklist Screen ────────────────────────────────────────────────────────── */
+.checklist-section {
+  margin: 12px 16px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.checklist-section-header {
+  padding: 12px 14px;
+  background: var(--surface2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.checklist-item {
+  padding: 13px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.checklist-item:last-child { border-bottom: none; }
+.checklist-item:active { background: var(--surface2); }
+.checklist-item.checked .check-text { color: var(--text-muted); text-decoration: line-through; }
+.check-box {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  margin-top: 1px;
+}
+.checklist-item.checked .check-box {
+  background: var(--success);
+  border-color: var(--success);
+}
+.check-tick { font-size: 13px; color: white; display: none; }
+.checklist-item.checked .check-tick { display: block; }
+.check-text { font-size: 14px; line-height: 1.4; flex: 1; }
+
+.notes-section {
+  margin: 12px 16px 0;
+}
+.notes-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.notes-textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px 14px;
+  resize: none;
+  min-height: 90px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.notes-textarea:focus { border-color: var(--accent); }
+.notes-textarea::placeholder { color: var(--text-dim); }
+.notes-save-btn {
+  margin-top: 8px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  border-radius: var(--radius);
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.notes-save-btn:active { background: var(--accent-glow); }
+
+.progress-bar-wrap {
+  margin: 12px 16px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.progress-text { font-size: 13px; color: var(--text-muted); flex: 1; }
+.progress-count { font-size: 15px; font-weight: 700; color: var(--success); }
+.progress-track {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ── Journal Screen ──────────────────────────────────────────────────────────── */
+.journal-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.journal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.journal-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.journal-card-id {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.journal-card-date {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.journal-card-route {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.journal-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.journal-tag {
+  font-size: 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 4px;
+}
+.journal-tag-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.journal-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.journal-action-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex; align-items: center; gap: 5px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.journal-action-btn:active { border-color: var(--accent); color: var(--accent); }
+.journal-action-btn.danger:active { border-color: var(--danger); color: var(--danger); }
+
+/* ── Modal ───────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: flex-end;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.modal-overlay.visible { opacity: 1; }
+.modal-overlay.hidden { display: none; }
+.modal-sheet {
+  background: var(--surface);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  width: 100%;
+  padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 16px);
+  max-height: 85vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.25s ease;
+}
+.modal-overlay.visible .modal-sheet { transform: translateY(0); }
+.modal-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 12px auto 16px;
+}
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  padding: 0 16px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.form-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 11px 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--text-dim); }
+.modal-actions {
+  padding: 0 16px;
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Empty State ─────────────────────────────────────────────────────────────── */
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.empty-state-icon { font-size: 48px; margin-bottom: 16px; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.empty-state-text { font-size: 14px; line-height: 1.5; }
+
+/* ── Loading spinner ────────────────────────────────────────────────────────── */
+.spinner-wrap {
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ───────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: calc(var(--nav-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.success { border-color: var(--success); color: var(--success); }
+.toast.error   { border-color: var(--danger);  color: var(--danger);  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ── Header ── -->
+  <header class="header">
+    <button class="header-back hidden" id="hdr-back" onclick="navBack()">←</button>
+    <div class="header-title" id="hdr-title">🚛 ConvoyLocator</div>
+    <div class="header-action hidden" id="hdr-action"></div>
+  </header>
+
+  <!-- ── Screen: Home ── -->
+  <div class="screen" id="s-home">
+    <div class="location-bar" id="loc-bar" onclick="getLocation()">
+      <div class="location-dot" id="loc-dot"></div>
+      <div style="flex:1">
+        <div class="location-text" id="loc-text">Tap a helyzet megkapásához</div>
+        <div class="location-coords" id="loc-coords"></div>
+      </div>
+      <div class="location-refresh">⟳</div>
+    </div>
+
+    <button class="best-stop-btn" onclick="doBestStop()">
+      <div class="best-stop-btn-icon">🛑</div>
+      <div class="best-stop-btn-text">
+        <div class="best-stop-btn-title">BEST STOP NOW</div>
+        <div class="best-stop-btn-sub">Üzemanyag + Étel + Parkoló</div>
+      </div>
+      <div style="margin-left:auto;font-size:20px;color:rgba(255,255,255,0.6)">›</div>
+    </button>
+
+    <div class="section-label">Kategóriák</div>
+    <div class="cat-grid" id="cat-grid"></div>
+  </div>
+
+  <!-- ── Screen: Results ── -->
+  <div class="screen hidden" id="s-results">
+    <div class="section-label" id="res-label"></div>
+    <div class="results-list" id="results-list"></div>
+  </div>
+
+  <!-- ── Screen: Best Stop ── -->
+  <div class="screen hidden" id="s-beststop">
+    <div class="section-label">Top 3 megálló kombináció</div>
+    <div class="results-list" id="beststop-list"></div>
+  </div>
+
+  <!-- ── Screen: Checklist ── -->
+  <div class="screen hidden" id="s-checklist">
+    <div class="progress-bar-wrap">
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="progress-text">Kész</span>
+          <span class="progress-count" id="cl-count">0/8</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="cl-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div id="checklist-items"></div>
+    <div class="notes-section">
+      <div class="notes-label">📝 Útvonal megjegyzések</div>
+      <textarea class="notes-textarea" id="notes-ta" placeholder="Hidak, tiltott szakaszok, különleges utasítások…"></textarea>
+      <button class="notes-save-btn" onclick="saveNotes()">💾 Megjegyzések mentése</button>
+    </div>
+  </div>
+
+  <!-- ── Screen: Journal ── -->
+  <div class="screen hidden" id="s-journal">
+    <div class="section-label">Szállítási napló</div>
+    <div class="journal-list" id="journal-list"></div>
+  </div>
+
+  <!-- ── Bottom Navigation ── -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-screen="home" onclick="navTo('home')">
+      <div class="nav-icon">🏠</div>
+      <div class="nav-label">Főoldal</div>
+    </button>
+    <button class="nav-btn" data-screen="beststop" onclick="navTo('beststop')">
+      <div class="nav-icon">🛑</div>
+      <div class="nav-label">Best Stop</div>
+    </button>
+    <button class="nav-btn" data-screen="checklist" onclick="navTo('checklist')">
+      <div class="nav-icon">✅</div>
+      <div class="nav-label">Checklist</div>
+    </button>
+    <button class="nav-btn" data-screen="journal" onclick="navTo('journal')">
+      <div class="nav-icon">📓</div>
+      <div class="nav-label">Napló</div>
+    </button>
+    <button class="nav-btn" onclick="showLang()">
+      <div class="nav-icon">🌐</div>
+      <div class="nav-label">Nyelv</div>
+    </button>
+  </nav>
+
+  <!-- ── Modal: Add Journal Entry ── -->
+  <div class="modal-overlay hidden" id="jrn-modal" onclick="closeJrnModal(event)">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title" id="jrn-modal-title">➕ Új szállítás</div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label class="form-label">🛣 Útvonal</label>
+          <input class="form-input" id="jf-route" placeholder="Budapest → Debrecen">
+        </div>
+        <div class="form-field">
+          <label class="form-label">📄 AST szám</label>
+          <input class="form-input" id="jf-ast" placeholder="2024/1234 (vagy -)">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🔢 Km</label>
+          <input class="form-input" id="jf-km" placeholder="248" type="text" inputmode="numeric">
+        </div>
+        <div class="form-field">
+          <label class="form-label">📐 Méretek / Tömeg</label>
+          <input class="form-input" id="jf-dims" placeholder="28x2.8x4.3m, 110t">
+        </div>
+        <div class="form-field">
+          <label class="form-label">📝 Megjegyzés</label>
+          <input class="form-input" id="jf-notes" placeholder="Opcionális…">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeJrnModal()">Mégse</button>
+        <button class="btn btn-primary" onclick="saveJrnEntry()">💾 Mentés</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Edit Journal Field ── -->
+  <div class="modal-overlay hidden" id="edit-modal" onclick="closeEditModal(event)">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title" id="edit-modal-title">✏️ Mező szerkesztése</div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label class="form-label" id="edit-modal-label"></label>
+          <input class="form-input" id="edit-modal-input" placeholder="">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeEditModal()">Mégse</button>
+        <button class="btn btn-primary" onclick="saveEditField()">✅ Frissítés</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Language ── -->
+  <div class="modal-overlay hidden" id="lang-modal" onclick="closeLangModal(event)">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">🌐 Nyelv / Limbă / Language</div>
+      <div class="modal-body">
+        <button class="btn btn-ghost" style="justify-content:center;font-size:15px" onclick="setLang('hu')">🇭🇺 Magyar</button>
+        <button class="btn btn-ghost" style="justify-content:center;font-size:15px" onclick="setLang('ro')">🇷🇴 Română</button>
+        <button class="btn btn-ghost" style="justify-content:center;font-size:15px" onclick="setLang('en')">🇬🇧 English</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast ── -->
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const S = {
+  screen:  'home',
+  lang:    localStorage.getItem('cl_lang') || 'hu',
+  loc:     null,        // {lat, lng}
+  results: [],
+  category: null,
+  clusters: [],
+  journal: [],
+  chatId:  null,
+  notes:   localStorage.getItem('cl_notes') || '',
+  checklist: JSON.parse(localStorage.getItem('cl_checks') || 'null'),
+  editId:    null,
+  editField: null,
+};
+
+// ── Telegram WebApp setup ─────────────────────────────────────────────────────
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  const u = tg.initDataUnsafe && tg.initDataUnsafe.user;
+  if (u) S.chatId = u.id;
+  // Only apply light theme when actually running inside Telegram
+  // (initData is non-empty only inside a real Telegram client)
+  if (tg.initData && tg.colorScheme === 'light') {
+    document.documentElement.style.setProperty('--bg', '#F4F4F5');
+    document.documentElement.style.setProperty('--surface', '#FFFFFF');
+    document.documentElement.style.setProperty('--surface2', '#F0F0F0');
+    document.documentElement.style.setProperty('--text', '#09090B');
+    document.documentElement.style.setProperty('--text-muted', '#52525B');
+    document.documentElement.style.setProperty('--border', '#E4E4E7');
+  }
+}
+
+// ── Localisation ──────────────────────────────────────────────────────────────
+const L = {
+  hu: {
+    home: '🚛 ConvoyLocator',
+    results: 'Találatok',
+    beststop: '🛑 Best Stop',
+    checklist: '✅ Checklist',
+    journal: '📓 Szállítási napló',
+    noLoc: 'Helyzet szükséges!',
+    searching: 'Keresés…',
+    noResults: 'Nincs találat 20 km-en belül.',
+    openMaps: 'Megnyitás',
+    navigate: 'Navigálás',
+    km: 'km',
+    m: 'm',
+    noFood: 'Nincs közeli étterem',
+    noParking: 'Nincs közeli parkoló',
+    loading: 'Betöltés…',
+    notesSaved: '✅ Megjegyzések mentve',
+    entrySaved: '✅ Bejegyzés mentve',
+    entryDeleted: '🗑 Törölve',
+    entryUpdated: '✅ Frissítve',
+    addEntry: '➕ Új bejegyzés',
+    noEntries: 'Még nincsenek bejegyzések.',
+    locFail: '❌ Helyzet nem elérhető',
+    locTap: 'Tap a helyzet megkapásához',
+    locGetting: 'Helyzet lekérése…',
+    bestStopSub: 'Üzemanyag + Étel + Parkoló',
+    sectCat: 'Kategóriák',
+    checkHome: '🏠 Indulás előtt — Otthon',
+    checkTruck: '🚛 Indulás előtt — Kamiontól',
+    checks: [
+      '📄 Engedély elolvasása — utasítások, megszorítások',
+      '🗺 Útvonal elkészítése',
+      '📝 Ordin de Deplasare kitöltése',
+      '📋 Kísérőlevél kitöltése',
+      '⏱ Menetidő: Bors → találkozási pont ellenőrzése',
+      '🔦 Kamion átnézés: villogók, rakomány, méretek',
+      '📱 Elkészített útvonal beállítása GPS-en',
+      '💧 500 ml palack — jelen van?',
+    ],
+    checkGroups: [5, 8], // first group ends at index 5
+    notesLabel: '📝 Útvonal megjegyzések',
+    notesPlaceholder: 'Hidak, tiltott szakaszok, különleges utasítások…',
+    notesSaveBtn: '💾 Megjegyzések mentése',
+  },
+  ro: {
+    home: '🚛 ConvoyLocator',
+    results: 'Rezultate',
+    beststop: '🛑 Best Stop',
+    checklist: '✅ Checklist',
+    journal: '📓 Jurnal transporturi',
+    noLoc: 'Locație necesară!',
+    searching: 'Căutare…',
+    noResults: 'Fără rezultate în 20 km.',
+    openMaps: 'Deschide',
+    navigate: 'Navigare',
+    km: 'km', m: 'm',
+    noFood: 'Fără restaurant apropiat',
+    noParking: 'Fără parcare apropiată',
+    loading: 'Încărcare…',
+    notesSaved: '✅ Notițe salvate',
+    entrySaved: '✅ Înregistrare salvată',
+    entryDeleted: '🗑 Șters',
+    entryUpdated: '✅ Actualizat',
+    addEntry: '➕ Transport nou',
+    noEntries: 'Nu există înregistrări.',
+    locFail: '❌ Locație indisponibilă',
+    locTap: 'Apasă pentru locație',
+    locGetting: 'Se obține locația…',
+    bestStopSub: 'Combustibil + Mâncare + Parcare',
+    sectCat: 'Categorii',
+    checkHome: '🏠 Înainte de plecare — Acasă',
+    checkTruck: '🚛 Înainte de plecare — La camion',
+    checks: [
+      '📄 Citește permisul — instrucțiuni, restricții',
+      '🗺 Pregătire traseu',
+      '📝 Completează Ordinul de Deplasare',
+      '📋 Completează scrisoarea de escortă',
+      '⏱ Timp de drum: Bors → punct de întâlnire',
+      '🔦 Inspecție camion: girofar, ancorare, dimensiuni',
+      '📱 Setează traseul pregătit pe GPS',
+      '💧 Sticlă 500 ml — este prezentă?',
+    ],
+    checkGroups: [5, 8],
+    notesLabel: '📝 Observații traseu',
+    notesPlaceholder: 'Poduri, sectoare interzise, instrucțiuni speciale…',
+    notesSaveBtn: '💾 Salvează notițele',
+  },
+  en: {
+    home: '🚛 ConvoyLocator',
+    results: 'Results',
+    beststop: '🛑 Best Stop',
+    checklist: '✅ Checklist',
+    journal: '📓 Transport Journal',
+    noLoc: 'Location required!',
+    searching: 'Searching…',
+    noResults: 'Nothing found within 20 km.',
+    openMaps: 'Open',
+    navigate: 'Navigate',
+    km: 'km', m: 'm',
+    noFood: 'No nearby restaurant',
+    noParking: 'No nearby parking',
+    loading: 'Loading…',
+    notesSaved: '✅ Notes saved',
+    entrySaved: '✅ Entry saved',
+    entryDeleted: '🗑 Deleted',
+    entryUpdated: '✅ Updated',
+    addEntry: '➕ New entry',
+    noEntries: 'No entries yet.',
+    locFail: '❌ Location unavailable',
+    locTap: 'Tap to get location',
+    locGetting: 'Getting location…',
+    bestStopSub: 'Fuel + Food + Parking',
+    sectCat: 'Categories',
+    checkHome: '🏠 Before departure — Home',
+    checkTruck: '🚛 Before departure — At truck',
+    checks: [
+      '📄 Read the permit — instructions, restrictions',
+      '🗺 Prepare the route',
+      '📝 Fill in the Ordin de Deplasare',
+      '📋 Fill in the escort letter',
+      '⏱ Travel time: Bors → meeting point',
+      '🔦 Inspect truck: beacons, cargo, dimensions',
+      '📱 Set up route on GPS',
+      '💧 500 ml bottle — present?',
+    ],
+    checkGroups: [5, 8],
+    notesLabel: '📝 Route notes',
+    notesPlaceholder: 'Bridges, restricted sections, special instructions…',
+    notesSaveBtn: '💾 Save notes',
+  },
+};
+const t = (k) => (L[S.lang] || L.hu)[k] || k;
+
+const CATS = {
+  combustibil:  { emoji: '⛽', label: { hu: 'Üzemanyag',   ro: 'Combustibil', en: 'Fuel' } },
+  mancare:      { emoji: '🍽', label: { hu: 'Étel',        ro: 'Mâncare',     en: 'Food' } },
+  fastfood:     { emoji: '🍔', label: { hu: 'Gyorsétterem',ro: 'Fast Food',   en: 'Fast Food' } },
+  parcare_tir:  { emoji: '🅿️', label: { hu: 'TIR Parkoló', ro: 'Parcare TIR', en: 'TIR Parking' } },
+  mol:          { emoji: '🔴', label: { hu: 'MOL',          ro: 'MOL',         en: 'MOL' } },
+  service:      { emoji: '🔧', label: { hu: 'Szerviz',      ro: 'Service',     en: 'Service' } },
+  hotel:        { emoji: '🛏', label: { hu: 'Szállás',      ro: 'Hotel',       en: 'Hotel' } },
+  cafenea:      { emoji: '☕', label: { hu: 'Kávézó',       ro: 'Cafenea',     en: 'Café' } },
+  supermarket:  { emoji: '🛒', label: { hu: 'Szupermarket', ro: 'Supermarket', en: 'Supermarket' } },
+  vulcanizare:  { emoji: '🔩', label: { hu: 'Gumiszerelő',  ro: 'Vulcanizare', en: 'Tyre Repair' } },
+  atm:          { emoji: '💶', label: { hu: 'ATM / Bank',   ro: 'ATM / Bancă', en: 'ATM / Bank' } },
+  spital:       { emoji: '🏥', label: { hu: 'Kórház',       ro: 'Spital',      en: 'Hospital' } },
+  wc:           { emoji: '🚻', label: { hu: 'WC',           ro: 'WC',          en: 'WC' } },
+  pekseg:       { emoji: '🥐', label: { hu: 'Pékség',       ro: 'Patiserie',   en: 'Bakery' } },
+};
+const catLabel = (k) => (CATS[k] && CATS[k].label[S.lang]) || k;
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, 2500);
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+const BACK_MAP = { results: 'home', beststop: 'home' };
+
+function navTo(screen) {
+  const old = document.getElementById('s-' + S.screen);
+  const next = document.getElementById('s-' + screen);
+  if (!next) return;
+  if (old) old.classList.add('hidden');
+  next.classList.remove('hidden');
+  S.screen = screen;
+
+  // nav bar
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.screen === screen);
+  });
+
+  // header
+  const back = document.getElementById('hdr-back');
+  const title = document.getElementById('hdr-title');
+  const action = document.getElementById('hdr-action');
+  const hasBk = !!BACK_MAP[screen];
+  back.classList.toggle('hidden', !hasBk);
+  action.classList.add('hidden');
+  action.onclick = null;
+  action.textContent = '';
+
+  const titles = { home: t('home'), results: t('results'), beststop: t('beststop'), checklist: t('checklist'), journal: t('journal') };
+  title.textContent = titles[screen] || screen;
+
+  if (screen === 'journal' && S.chatId) {
+    action.classList.remove('hidden');
+    action.textContent = '➕';
+    action.onclick = openJrnModal;
+  }
+  if (screen === 'checklist') renderChecklist();
+  if (screen === 'journal') loadJournal();
+  if (screen === 'beststop' && !S.clusters.length) doBestStop();
+}
+
+function navBack() {
+  const dest = BACK_MAP[S.screen] || 'home';
+  navTo(dest);
+}
+
+// ── Location ──────────────────────────────────────────────────────────────────
+function getLocation() {
+  const dot  = document.getElementById('loc-dot');
+  const text = document.getElementById('loc-text');
+  const coords = document.getElementById('loc-coords');
+  dot.className = 'location-dot loading';
+  text.className = 'location-text';
+  text.textContent = t('locGetting');
+  coords.textContent = '';
+
+  if (!navigator.geolocation) {
+    dot.className = 'location-dot';
+    text.textContent = t('locFail');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      S.loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      dot.className = 'location-dot active';
+      text.className = 'location-text active';
+      // reverse geocode approximation: show coords
+      text.textContent = `📍 ${S.loc.lat.toFixed(4)}, ${S.loc.lng.toFixed(4)}`;
+      coords.textContent = `±${Math.round(pos.coords.accuracy)} m`;
+      document.getElementById('loc-bar').classList.add('has-location');
+    },
+    err => {
+      dot.className = 'location-dot';
+      text.textContent = t('locFail');
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+  );
+}
+
+// ── Category grid ─────────────────────────────────────────────────────────────
+function buildCatGrid() {
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = '';
+  Object.entries(CATS).forEach(([key, c]) => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn';
+    btn.innerHTML = `<div class="cat-btn-icon">${c.emoji}</div><div class="cat-btn-label">${catLabel(key)}</div>`;
+    btn.onclick = () => doSearch(key);
+    grid.appendChild(btn);
+  });
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function api(path, method, body) {
+  const opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+async function doSearch(category) {
+  if (!S.loc) { showToast(t('noLoc'), 'error'); getLocation(); return; }
+  navTo('results');
+  const label = document.getElementById('res-label');
+  const list  = document.getElementById('results-list');
+  label.textContent = `${CATS[category]?.emoji || ''} ${catLabel(category)}`;
+  list.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div><div>${t('searching')}</div></div>`;
+  S.category = category;
+
+  try {
+    const data = await api('/api/search', 'POST', { lat: S.loc.lat, lng: S.loc.lng, category, lang: S.lang });
+    S.results = data.results || [];
+    renderResults();
+  } catch (e) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Hiba</div><div class="empty-state-text">${e.message}</div></div>`;
+  }
+}
+
+function renderResults() {
+  const list = document.getElementById('results-list');
+  if (!S.results.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">${t('noResults')}</div></div>`;
+    return;
+  }
+  list.innerHTML = S.results.map((r, i) => `
+    <div class="card">
+      <div class="card-name">${r.name}${r.rating ? `<span class="card-rating">⭐ ${r.rating}</span>` : ''}</div>
+      <div class="card-address">📌 ${r.address}</div>
+      <div class="card-dist">${fmtDist(r.distance_km)}</div>
+      <div class="card-actions">
+        <button class="btn btn-primary" onclick="openMaps('${r.maps_url}')">🗺 ${t('openMaps')}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Best Stop ─────────────────────────────────────────────────────────────────
+async function doBestStop() {
+  if (S.screen !== 'beststop') navTo('beststop');
+  if (!S.loc) { showToast(t('noLoc'), 'error'); getLocation(); return; }
+
+  const list = document.getElementById('beststop-list');
+  list.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div><div>${t('searching')}</div></div>`;
+
+  try {
+    const data = await api('/api/best-stop', 'POST', { lat: S.loc.lat, lng: S.loc.lng, lang: S.lang });
+    S.clusters = data.clusters || [];
+    renderBestStop();
+  } catch (e) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Hiba</div><div class="empty-state-text">${e.message}</div></div>`;
+  }
+}
+
+function renderBestStop() {
+  const list = document.getElementById('beststop-list');
+  if (!S.clusters.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🛑</div><div class="empty-state-title">${t('noResults')}</div></div>`;
+    return;
+  }
+  const medals = ['🥇', '🥈', '🥉'];
+  const rankClass = ['gold', 'silver', 'bronze'];
+  list.innerHTML = S.clusters.map((cl, i) => {
+    const fuel = cl.fuel, food = cl.food, park = cl.parking;
+    return `
+    <div class="card">
+      <div class="card-rank ${rankClass[i] || ''}">${medals[i] || (i+1)+'.'} Kombináció #${i+1}</div>
+      <div class="card-name">⛽ ${fuel.name}</div>
+      <div class="card-address">📌 ${fuel.address}</div>
+      <div class="card-dist">${fmtDist(fuel.distance_km)}</div>
+      <div class="card-meta">
+        <div class="card-meta-row${food ? '' : ' missing'}">
+          🍽 ${food ? `${food.name} — ${fmtDist(food.dist_to_anchor)}` : t('noFood')}
+        </div>
+        <div class="card-meta-row${park ? '' : ' missing'}">
+          🅿️ ${park ? `${park.name} — ${fmtDist(park.dist_to_anchor)}` : t('noParking')}
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-primary" onclick="openMaps('${fuel.maps_url}')">🗺 ${t('navigate')}</button>
+        ${food ? `<button class="btn btn-ghost" onclick="openMaps('${food.maps_url}')">🍽</button>` : ''}
+        ${park ? `<button class="btn btn-ghost" onclick="openMaps('${park.maps_url}')">🅿️</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openMaps(url) {
+  window.open(url, '_blank');
+}
+
+function fmtDist(km) {
+  if (!km && km !== 0) return '';
+  return km < 0.1 ? `${Math.round(km * 1000)} ${t('m')}` : `${km.toFixed(1)} ${t('km')}`;
+}
+
+// ── Checklist ─────────────────────────────────────────────────────────────────
+function initChecklist() {
+  if (!S.checklist) {
+    S.checklist = new Array(t('checks').length).fill(false);
+  }
+  document.getElementById('notes-ta').value = S.notes;
+}
+
+function renderChecklist() {
+  initChecklist();
+  const checks = t('checks');
+  const groups = t('checkGroups');
+  const container = document.getElementById('checklist-items');
+  let html = '';
+  let inGroup = 0;
+
+  for (let i = 0; i < checks.length; i++) {
+    if (i === 0) {
+      html += `<div class="checklist-section">
+        <div class="checklist-section-header">${t('checkHome')}</div>`;
+    }
+    if (i === groups[0]) {
+      html += `</div><div class="checklist-section" style="margin-top:10px">
+        <div class="checklist-section-header">${t('checkTruck')}</div>`;
+    }
+    const checked = S.checklist[i] ? 'checked' : '';
+    html += `
+      <div class="checklist-item ${checked}" id="cli-${i}" onclick="toggleCheck(${i})">
+        <div class="check-box"><span class="check-tick">✓</span></div>
+        <div class="check-text">${i + 1}. ${checks[i]}</div>
+      </div>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+  updateProgress();
+}
+
+function toggleCheck(i) {
+  S.checklist[i] = !S.checklist[i];
+  const item = document.getElementById('cli-' + i);
+  item.classList.toggle('checked', S.checklist[i]);
+  localStorage.setItem('cl_checks', JSON.stringify(S.checklist));
+  updateProgress();
+}
+
+function updateProgress() {
+  const total = S.checklist.length;
+  const done  = S.checklist.filter(Boolean).length;
+  document.getElementById('cl-count').textContent = `${done}/${total}`;
+  document.getElementById('cl-fill').style.width = `${Math.round(done / total * 100)}%`;
+}
+
+function saveNotes() {
+  S.notes = document.getElementById('notes-ta').value;
+  localStorage.setItem('cl_notes', S.notes);
+  showToast(t('notesSaved'), 'success');
+}
+
+// ── Journal ───────────────────────────────────────────────────────────────────
+async function loadJournal() {
+  if (!S.chatId) {
+    document.getElementById('journal-list').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📓</div>
+        <div class="empty-state-title">Nem elérhető</div>
+        <div class="empty-state-text">A napló csak Telegram-on keresztül elérhető.</div>
+      </div>`;
+    return;
+  }
+  document.getElementById('journal-list').innerHTML =
+    `<div class="spinner-wrap"><div class="spinner"></div><div>${t('loading')}</div></div>`;
+  try {
+    const data = await api(`/api/journal/${S.chatId}`);
+    S.journal = (data.entries || []).reverse();
+    renderJournal();
+  } catch (e) {
+    document.getElementById('journal-list').innerHTML =
+      `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Hiba: ${e.message}</div></div>`;
+  }
+}
+
+function renderJournal() {
+  const list = document.getElementById('journal-list');
+  if (!S.journal.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">📓</div>
+      <div class="empty-state-title">${t('noEntries')}</div>
+      <div class="empty-state-text">Adj hozzá az ➕ gombbal.</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = S.journal.map(e => `
+    <div class="journal-card">
+      <div class="journal-card-header">
+        <div>
+          <span class="journal-card-id">#${e.id}</span>
+          <span style="color:var(--text-dim);font-size:11px;margin-left:6px">${e.date}</span>
+        </div>
+      </div>
+      <div class="journal-card-route">🛣 ${e.route}</div>
+      <div class="journal-card-meta">
+        ${e.ast && e.ast !== '-' ? `<span class="journal-tag">📄 ${e.ast}</span>` : ''}
+        ${e.km  && e.km  !== '-' ? `<span class="journal-tag">🔢 ${e.km} km</span>` : ''}
+        ${e.dims && e.dims !== '-' ? `<span class="journal-tag">📐 ${e.dims}</span>` : ''}
+      </div>
+      ${e.notes ? `<div class="journal-tag-note">📝 ${e.notes}</div>` : ''}
+      <div class="journal-card-actions">
+        <button class="journal-action-btn" onclick="openEditJrn(${e.id})">✏️ Szerkeszt</button>
+        <button class="journal-action-btn danger" onclick="deleteJrn(${e.id})">🗑 Töröl</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── Journal Modal ─────────────────────────────────────────────────────────────
+function openJrnModal() {
+  document.getElementById('jf-route').value = '';
+  document.getElementById('jf-ast').value   = '';
+  document.getElementById('jf-km').value    = '';
+  document.getElementById('jf-dims').value  = '';
+  document.getElementById('jf-notes').value = '';
+  showModal('jrn-modal');
+}
+
+async function saveJrnEntry() {
+  const route = document.getElementById('jf-route').value.trim();
+  if (!route) { document.getElementById('jf-route').focus(); return; }
+  try {
+    await api(`/api/journal/${S.chatId}`, 'POST', {
+      route,
+      ast:   document.getElementById('jf-ast').value.trim()   || '-',
+      km:    document.getElementById('jf-km').value.trim()    || '-',
+      dims:  document.getElementById('jf-dims').value.trim()  || '-',
+      notes: document.getElementById('jf-notes').value.trim() || '',
+    });
+    closeJrnModal();
+    showToast(t('entrySaved'), 'success');
+    loadJournal();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+function closeJrnModal(ev) {
+  if (ev && ev.target !== document.getElementById('jrn-modal')) return;
+  hideModal('jrn-modal');
+}
+
+// ── Journal Edit ──────────────────────────────────────────────────────────────
+const EDIT_FIELDS = {
+  route: { label: '🛣 Útvonal', placeholder: 'Budapest → Debrecen' },
+  ast:   { label: '📄 AST szám', placeholder: '2024/1234' },
+  km:    { label: '🔢 Km', placeholder: '248' },
+  dims:  { label: '📐 Méretek', placeholder: '28x2.8x4.3m, 110t' },
+  notes: { label: '📝 Megjegyzés', placeholder: '' },
+};
+
+function openEditJrn(id) {
+  const entry = S.journal.find(e => e.id === id);
+  if (!entry) return;
+  S.editId = id;
+  // Show field selector as buttons in modal
+  const title = document.getElementById('jrn-modal-title');
+  const body  = document.getElementById('jrn-modal').querySelector('.modal-body');
+  const acts  = document.getElementById('jrn-modal').querySelector('.modal-actions');
+
+  title.textContent = `✏️ #${id} szerkesztése`;
+  body.innerHTML = Object.entries(EDIT_FIELDS).map(([k, f]) => `
+    <button class="btn btn-ghost" style="justify-content:space-between" onclick="startEditField('${id}','${k}','${(entry[k]||'').replace(/'/g,"\\'")}')">
+      <span>${f.label}</span>
+      <span style="color:var(--text-dim);font-size:12px;max-width:60%;text-overflow:ellipsis;overflow:hidden;white-space:nowrap">${entry[k] || '-'}</span>
+    </button>`).join('');
+  acts.innerHTML = '<button class="btn btn-ghost" onclick="closeJrnModal()">Vissza</button>';
+  showModal('jrn-modal');
+}
+
+function startEditField(id, field, currentVal) {
+  S.editId    = parseInt(id);
+  S.editField = field;
+  const cfg = EDIT_FIELDS[field];
+  document.getElementById('edit-modal-title').textContent = `✏️ ${cfg.label}`;
+  document.getElementById('edit-modal-label').textContent  = cfg.label;
+  const inp = document.getElementById('edit-modal-input');
+  inp.placeholder = cfg.placeholder;
+  inp.value = currentVal;
+  hideModal('jrn-modal');
+  showModal('edit-modal');
+  setTimeout(() => inp.focus(), 300);
+}
+
+async function saveEditField() {
+  const val = document.getElementById('edit-modal-input').value.trim();
+  try {
+    await api(`/api/journal/${S.chatId}/${S.editId}`, 'PUT', { field: S.editField, value: val });
+    closeEditModal();
+    showToast(t('entryUpdated'), 'success');
+    loadJournal();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+function closeEditModal(ev) {
+  if (ev && ev.target !== document.getElementById('edit-modal')) return;
+  hideModal('edit-modal');
+}
+
+async function deleteJrn(id) {
+  if (!confirm(`#${id} törlése?`)) return;
+  try {
+    await api(`/api/journal/${S.chatId}/${id}`, 'DELETE');
+    showToast(t('entryDeleted'), 'success');
+    loadJournal();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+// ── Language modal ────────────────────────────────────────────────────────────
+function showLang()       { showModal('lang-modal'); }
+function closeLangModal(ev) { if (ev && ev.target !== document.getElementById('lang-modal')) return; hideModal('lang-modal'); }
+function setLang(l) {
+  S.lang = l;
+  localStorage.setItem('cl_lang', l);
+  hideModal('lang-modal');
+  buildCatGrid();
+  if (S.screen === 'checklist') renderChecklist();
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function showModal(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  requestAnimationFrame(() => el.classList.add('visible'));
+}
+function hideModal(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('visible');
+  setTimeout(() => el.classList.add('hidden'), 250);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildCatGrid();
+// Only auto-request location inside Telegram (browser preview blocks geolocation anyway)
+if (tg && tg.initData) getLocation();
+</script>
+</body>
+</html>
