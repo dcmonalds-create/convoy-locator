@@ -34,25 +34,29 @@ def _save(chat_id: int, entries: list[dict]) -> None:
 
 def add_entry(
     chat_id:    int,
-    route:      str,
     rendszam:   str = "-",
     szallito:   str = "-",
+    sofor_neve: str = "-",
     kisert_rsz: str = "-",
-    datum:      str = "-",
-    index_erk:  str = "-",
+    datum_ind:  str = "-",
+    datum_erk:  str = "-",
     index_ind:  str = "-",
+    index_erk:  str = "-",
+    route:      str = "-",
     notes:      str = "",
 ) -> dict:
     entries = load(chat_id)
     entry = {
         "id":         (entries[-1]["id"] + 1) if entries else 1,
-        "route":      route,
         "rendszam":   rendszam,
         "szallito":   szallito,
+        "sofor_neve": sofor_neve,
         "kisert_rsz": kisert_rsz,
-        "datum":      datum,
-        "index_erk":  index_erk,
+        "datum_ind":  datum_ind,
+        "datum_erk":  datum_erk,
         "index_ind":  index_ind,
+        "index_erk":  index_erk,
+        "route":      route,
         "notes":      notes,
     }
     entries.append(entry)
@@ -60,7 +64,10 @@ def add_entry(
     return entry
 
 
-_ALLOWED_FIELDS = {"route", "rendszam", "szallito", "kisert_rsz", "datum", "index_erk", "index_ind", "notes"}
+_ALLOWED_FIELDS = {
+    "rendszam", "szallito", "sofor_neve", "kisert_rsz",
+    "datum_ind", "datum_erk", "index_ind", "index_erk", "route", "notes"
+}
 
 
 def update_entry(chat_id: int, entry_id: int, field: str, value: str) -> bool:

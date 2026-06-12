@@ -111,13 +111,14 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(var(--nav-h) + 8px);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 8px);
 }
 .screen.hidden { display: none; }
 
 /* ── Bottom Navigation ──────────────────────────────────────────────────────── */
 .bottom-nav {
-  height: var(--nav-h);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: grid;
@@ -134,7 +135,7 @@ html, body {
   color: var(--text-muted);
   border: none;
   background: none;
-  padding: 0;
+  padding: 0 0 2px;
   font-family: inherit;
 }
 .nav-btn .nav-icon { width: 24px; height: 24px; flex-shrink: 0; }
@@ -478,6 +479,23 @@ html, body {
 }
 
 /* ── Journal Screen ──────────────────────────────────────────────────────────── */
+.journal-search-bar {
+  padding: 10px 16px 6px;
+  flex-shrink: 0;
+}
+.journal-search-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 9px 16px;
+  outline: none;
+}
+.journal-search-input:focus { border-color: var(--accent); }
+.journal-search-input::placeholder { color: var(--text-muted); }
+
 .journal-list {
   padding: 0 16px;
   display: flex;
@@ -746,7 +764,9 @@ html, body {
 
   <!-- ── Screen: Journal ── -->
   <div class="screen hidden" id="s-journal">
-    <div class="section-label">Szállítási napló</div>
+    <div class="journal-search-bar">
+      <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, útvonal, sofőr…" oninput="filterJournal()">
+    </div>
     <div class="journal-list" id="journal-list"></div>
   </div>
 
@@ -789,12 +809,20 @@ html, body {
           <input class="form-input" id="jf-szallito" placeholder="Cég neve">
         </div>
         <div class="form-field">
+          <label class="form-label">👤 Sofőr neve</label>
+          <input class="form-input" id="jf-sofor" placeholder="Kovács János">
+        </div>
+        <div class="form-field">
           <label class="form-label">🚛 Kísért jármű rendszáma</label>
           <input class="form-input" id="jf-kisert" placeholder="XY-1234">
         </div>
         <div class="form-field">
-          <label class="form-label">📅 Dátum / Óra</label>
-          <input class="form-input" id="jf-datum" placeholder="2025.06.12 — 08:30">
+          <label class="form-label">📅 Dátum / Óra — Induláskor</label>
+          <input class="form-input" id="jf-datum-ind" placeholder="2025.06.12 — 08:30">
+        </div>
+        <div class="form-field">
+          <label class="form-label">📅 Dátum / Óra — Érkezéskor</label>
+          <input class="form-input" id="jf-datum-erk" placeholder="2025.06.12 — 14:15">
         </div>
         <div class="form-field">
           <label class="form-label">🔢 Index Km — Induláskor</label>
@@ -1403,9 +1431,10 @@ async function loadJournal() {
   }
 }
 
-function renderJournal() {
+function renderJournal(entries) {
+  if (entries === undefined) entries = S.journal;
   const list = document.getElementById('journal-list');
-  if (!S.journal.length) {
+  if (!entries.length) {
     list.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">📓</div>
       <div class="empty-state-title">${t('noEntries')}</div>
@@ -1413,21 +1442,27 @@ function renderJournal() {
     </div>`;
     return;
   }
-  list.innerHTML = S.journal.map(e => `
+  list.innerHTML = entries.map(e => `
     <div class="journal-card">
       <div class="journal-card-header">
-        <div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="journal-card-id">#${e.id}</span>
-          ${e.datum && e.datum !== '-' ? `<span style="color:var(--text-muted);font-size:12px;margin-left:8px">📅 ${e.datum}</span>` : ''}
+          <span style="font-size:15px;font-weight:700;color:var(--text)">🚗 ${e.rendszam || '-'}</span>
         </div>
       </div>
-      <div class="journal-card-route" style="font-size:15px;font-weight:700;margin-bottom:6px">🚗 ${e.rendszam || '-'}</div>
       <div class="journal-card-meta">
-        ${e.szallito   && e.szallito   !== '-' ? `<span class="journal-tag">🏢 ${e.szallito}</span>`   : ''}
+        ${e.sofor_neve && e.sofor_neve !== '-' ? `<span class="journal-tag">👤 ${e.sofor_neve}</span>` : ''}
+        ${e.szallito   && e.szallito   !== '-' ? `<span class="journal-tag">🏢 ${e.szallito}</span>` : ''}
         ${e.kisert_rsz && e.kisert_rsz !== '-' ? `<span class="journal-tag">🚛 ${e.kisert_rsz}</span>` : ''}
+      </div>
+      <div class="journal-card-meta" style="margin-top:4px">
+        ${e.datum_ind  && e.datum_ind  !== '-' ? `<span class="journal-tag" style="background:rgba(245,158,11,0.1);border-color:var(--accent-dim)">↗ ${e.datum_ind}</span>` : ''}
+        ${e.datum_erk  && e.datum_erk  !== '-' ? `<span class="journal-tag" style="background:rgba(34,197,94,0.1);border-color:#166534">↙ ${e.datum_erk}</span>` : ''}
+      </div>
+      <div class="journal-card-meta" style="margin-top:4px">
         ${e.index_ind  && e.index_ind  !== '-' ? `<span class="journal-tag">↗ ${e.index_ind} km</span>` : ''}
         ${e.index_erk  && e.index_erk  !== '-' ? `<span class="journal-tag">↙ ${e.index_erk} km</span>` : ''}
-        ${e.route      && e.route      !== '-' ? `<span class="journal-tag">🛣 ${e.route}</span>`      : ''}
+        ${e.route      && e.route      !== '-' ? `<span class="journal-tag">🛣 ${e.route}</span>` : ''}
       </div>
       ${e.notes ? `<div class="journal-tag-note">📝 ${e.notes}</div>` : ''}
       <div class="journal-card-actions">
@@ -1437,9 +1472,19 @@ function renderJournal() {
     </div>`).join('');
 }
 
+function filterJournal() {
+  const q = (document.getElementById('jrn-search')?.value || '').toLowerCase().trim();
+  if (!q) { renderJournal(S.journal); return; }
+  const filtered = S.journal.filter(e =>
+    [e.rendszam, e.szallito, e.sofor_neve, e.kisert_rsz, e.route, e.datum_ind, e.datum_erk, e.notes]
+      .some(v => v && v.toLowerCase().includes(q))
+  );
+  renderJournal(filtered);
+}
+
 // ── Journal Modal ─────────────────────────────────────────────────────────────
 function openJrnModal() {
-  ['jf-rendszam','jf-szallito','jf-kisert','jf-datum','jf-ind','jf-erk','jf-route','jf-notes']
+  ['jf-rendszam','jf-szallito','jf-sofor','jf-kisert','jf-datum-ind','jf-datum-erk','jf-ind','jf-erk','jf-route','jf-notes']
     .forEach(id => { document.getElementById(id).value = ''; });
   showModal('jrn-modal');
 }
@@ -1449,14 +1494,16 @@ async function saveJrnEntry() {
   if (!rendszam) { document.getElementById('jf-rendszam').focus(); return; }
   try {
     await api(`/api/journal/${S.chatId}`, 'POST', {
-      route:      document.getElementById('jf-route').value.trim()    || '-',
       rendszam,
-      szallito:   document.getElementById('jf-szallito').value.trim() || '-',
-      kisert_rsz: document.getElementById('jf-kisert').value.trim()   || '-',
-      datum:      document.getElementById('jf-datum').value.trim()    || '-',
-      index_ind:  document.getElementById('jf-ind').value.trim()      || '-',
-      index_erk:  document.getElementById('jf-erk').value.trim()      || '-',
-      notes:      document.getElementById('jf-notes').value.trim()    || '',
+      szallito:   document.getElementById('jf-szallito').value.trim()   || '-',
+      sofor_neve: document.getElementById('jf-sofor').value.trim()      || '-',
+      kisert_rsz: document.getElementById('jf-kisert').value.trim()     || '-',
+      datum_ind:  document.getElementById('jf-datum-ind').value.trim()  || '-',
+      datum_erk:  document.getElementById('jf-datum-erk').value.trim()  || '-',
+      index_ind:  document.getElementById('jf-ind').value.trim()        || '-',
+      index_erk:  document.getElementById('jf-erk').value.trim()        || '-',
+      route:      document.getElementById('jf-route').value.trim()      || '-',
+      notes:      document.getElementById('jf-notes').value.trim()      || '',
     });
     closeJrnModal();
     showToast(t('entrySaved'), 'success');
@@ -1473,14 +1520,16 @@ function closeJrnModal(ev) {
 
 // ── Journal Edit ──────────────────────────────────────────────────────────────
 const EDIT_FIELDS = {
-  rendszam:   { label: '🚗 Rendszám',                   placeholder: 'ABC-123' },
-  szallito:   { label: '🏢 Szállító',                   placeholder: 'Cég neve' },
-  kisert_rsz: { label: '🚛 Kísért jármű rendszáma',     placeholder: 'XY-1234' },
-  datum:      { label: '📅 Dátum / Óra',                placeholder: '2025.06.12 — 08:30' },
-  index_ind:  { label: '🔢 Index Km — Induláskor',      placeholder: '124500' },
-  index_erk:  { label: '🔢 Index Km — Érkezéskor',      placeholder: '124748' },
-  route:      { label: '🛣 Útvonal',                    placeholder: 'Budapest → Debrecen' },
-  notes:      { label: '📝 Megjegyzés',                 placeholder: '' },
+  rendszam:   { label: '🚗 Rendszám',                    placeholder: 'ABC-123' },
+  szallito:   { label: '🏢 Szállító',                    placeholder: 'Cég neve' },
+  sofor_neve: { label: '👤 Sofőr neve',                  placeholder: 'Kovács János' },
+  kisert_rsz: { label: '🚛 Kísért jármű rendszáma',      placeholder: 'XY-1234' },
+  datum_ind:  { label: '📅 Dátum / Óra — Induláskor',   placeholder: '2025.06.12 — 08:30' },
+  datum_erk:  { label: '📅 Dátum / Óra — Érkezéskor',   placeholder: '2025.06.12 — 14:15' },
+  index_ind:  { label: '🔢 Index Km — Induláskor',       placeholder: '124500' },
+  index_erk:  { label: '🔢 Index Km — Érkezéskor',       placeholder: '124748' },
+  route:      { label: '🛣 Útvonal',                     placeholder: 'Budapest → Debrecen' },
+  notes:      { label: '📝 Megjegyzés',                  placeholder: '' },
 };
 
 function openEditJrn(id) {

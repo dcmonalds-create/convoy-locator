@@ -198,21 +198,25 @@ async def api_journal_list(chat_id: int):
 
 
 class JournalAddReq(BaseModel):
-    route:      str
     rendszam:   str = "-"
     szallito:   str = "-"
+    sofor_neve: str = "-"
     kisert_rsz: str = "-"
-    datum:      str = "-"
-    index_erk:  str = "-"
+    datum_ind:  str = "-"
+    datum_erk:  str = "-"
     index_ind:  str = "-"
+    index_erk:  str = "-"
+    route:      str = "-"
     notes:      str = ""
 
 
 @app.post("/api/journal/{chat_id}")
 async def api_journal_add(chat_id: int, req: JournalAddReq):
     entry = journal_mod.add_entry(
-        chat_id, req.route, req.rendszam, req.szallito,
-        req.kisert_rsz, req.datum, req.index_erk, req.index_ind, req.notes,
+        chat_id,
+        rendszam=req.rendszam, szallito=req.szallito, sofor_neve=req.sofor_neve,
+        kisert_rsz=req.kisert_rsz, datum_ind=req.datum_ind, datum_erk=req.datum_erk,
+        index_ind=req.index_ind, index_erk=req.index_erk, route=req.route, notes=req.notes,
     )
     return {"entry": entry}
 
@@ -224,7 +228,7 @@ class JournalUpdateReq(BaseModel):
 
 @app.put("/api/journal/{chat_id}/{entry_id}")
 async def api_journal_update(chat_id: int, entry_id: int, req: JournalUpdateReq):
-    allowed = {"route", "rendszam", "szallito", "kisert_rsz", "datum", "index_erk", "index_ind", "notes"}
+    allowed = {"rendszam", "szallito", "sofor_neve", "kisert_rsz", "datum_ind", "datum_erk", "index_ind", "index_erk", "route", "notes"}
     if req.field not in allowed:
         raise HTTPException(status_code=400, detail=f"field must be one of {allowed}")
     ok = journal_mod.update_entry(chat_id, entry_id, req.field, req.value)
