@@ -198,17 +198,21 @@ async def api_journal_list(chat_id: int):
 
 
 class JournalAddReq(BaseModel):
-    route: str
-    ast: str = "-"
-    km: str = "-"
-    dims: str = "-"
-    notes: str = ""
+    route:      str
+    rendszam:   str = "-"
+    szallito:   str = "-"
+    kisert_rsz: str = "-"
+    datum:      str = "-"
+    index_erk:  str = "-"
+    index_ind:  str = "-"
+    notes:      str = ""
 
 
 @app.post("/api/journal/{chat_id}")
 async def api_journal_add(chat_id: int, req: JournalAddReq):
     entry = journal_mod.add_entry(
-        chat_id, req.route, req.ast, req.km, req.dims, req.notes
+        chat_id, req.route, req.rendszam, req.szallito,
+        req.kisert_rsz, req.datum, req.index_erk, req.index_ind, req.notes,
     )
     return {"entry": entry}
 
@@ -220,7 +224,7 @@ class JournalUpdateReq(BaseModel):
 
 @app.put("/api/journal/{chat_id}/{entry_id}")
 async def api_journal_update(chat_id: int, entry_id: int, req: JournalUpdateReq):
-    allowed = {"route", "ast", "km", "dims", "notes"}
+    allowed = {"route", "rendszam", "szallito", "kisert_rsz", "datum", "index_erk", "index_ind", "notes"}
     if req.field not in allowed:
         raise HTTPException(status_code=400, detail=f"field must be one of {allowed}")
     ok = journal_mod.update_entry(chat_id, entry_id, req.field, req.value)

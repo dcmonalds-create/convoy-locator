@@ -177,6 +177,31 @@ html, body {
 .location-refresh { font-size: 18px; color: var(--text-dim); flex-shrink: 0; }
 
 /* ── Best Stop Button ────────────────────────────────────────────────────────── */
+.coord-input-wrap {
+  margin: 0 12px 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.coord-input-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.coord-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+}
+.coord-input:focus { border-color: var(--accent); }
+.coord-input::placeholder { color: var(--text-dim); }
+
 .best-stop-btn {
   margin: 12px 16px 0;
   background: linear-gradient(135deg, #B45309 0%, #F59E0B 100%);
@@ -655,7 +680,7 @@ html, body {
   <!-- ── Header ── -->
   <header class="header">
     <button class="header-back hidden" id="hdr-back" onclick="navBack()">←</button>
-    <div class="header-title" id="hdr-title">🚛 ConvoyLocator</div>
+    <div class="header-title" id="hdr-title"></div>
     <div class="header-action hidden" id="hdr-action"></div>
   </header>
 
@@ -668,6 +693,11 @@ html, body {
         <div class="location-coords" id="loc-coords"></div>
       </div>
       <div class="location-refresh">⟳</div>
+    </div>
+
+    <div class="coord-input-wrap">
+      <div class="coord-input-label" data-i18n="coordLabel">📍 Keresési pont (opcionális — üresen hagyva GPS-t használ)</div>
+      <input class="coord-input" id="custom-coord" type="text" placeholder="47.1182, 21.8173" inputmode="decimal">
     </div>
 
     <button class="best-stop-btn" onclick="doBestStop()">
@@ -751,20 +781,32 @@ html, body {
       <div class="modal-title" id="jrn-modal-title">➕ Új szállítás</div>
       <div class="modal-body">
         <div class="form-field">
+          <label class="form-label">🚗 Rendszám</label>
+          <input class="form-input" id="jf-rendszam" placeholder="ABC-123">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🏢 Szállító</label>
+          <input class="form-input" id="jf-szallito" placeholder="Cég neve">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🚛 Kísért jármű rendszáma</label>
+          <input class="form-input" id="jf-kisert" placeholder="XY-1234">
+        </div>
+        <div class="form-field">
+          <label class="form-label">📅 Dátum / Óra</label>
+          <input class="form-input" id="jf-datum" placeholder="2025.06.12 — 08:30">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🔢 Index Km — Induláskor</label>
+          <input class="form-input" id="jf-ind" placeholder="124500" type="text" inputmode="numeric">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🔢 Index Km — Érkezéskor</label>
+          <input class="form-input" id="jf-erk" placeholder="124748" type="text" inputmode="numeric">
+        </div>
+        <div class="form-field">
           <label class="form-label">🛣 Útvonal</label>
           <input class="form-input" id="jf-route" placeholder="Budapest → Debrecen">
-        </div>
-        <div class="form-field">
-          <label class="form-label">📄 AST szám</label>
-          <input class="form-input" id="jf-ast" placeholder="2024/1234 (vagy -)">
-        </div>
-        <div class="form-field">
-          <label class="form-label">🔢 Km</label>
-          <input class="form-input" id="jf-km" placeholder="248" type="text" inputmode="numeric">
-        </div>
-        <div class="form-field">
-          <label class="form-label">📐 Méretek / Tömeg</label>
-          <input class="form-input" id="jf-dims" placeholder="28x2.8x4.3m, 110t">
         </div>
         <div class="form-field">
           <label class="form-label">📝 Megjegyzés</label>
@@ -852,7 +894,7 @@ if (tg) {
 // ── Localisation ──────────────────────────────────────────────────────────────
 const L = {
   hu: {
-    home: '🚛 ConvoyLocator',
+    home: '',
     results: 'Találatok',
     beststop: '🛑 Best Stop',
     checklist: '✅ Checklist',
@@ -877,6 +919,7 @@ const L = {
     locTap: 'Tap a helyzet megkapásához',
     locGetting: 'Helyzet lekérése…',
     bestStopSub: 'Üzemanyag + Étel + Parkoló',
+    coordLabel: '📍 Keresési pont (opcionális — üresen hagyva GPS-t használ)',
     sectCat: 'Kategóriák',
     navHome: 'Főoldal', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Napló', navLang: 'Nyelv',
     checkHome: '🏠 Indulás előtt — Otthon',
@@ -897,7 +940,7 @@ const L = {
     notesSaveBtn: '💾 Megjegyzések mentése',
   },
   ro: {
-    home: '🚛 ConvoyLocator',
+    home: '',
     results: 'Rezultate',
     beststop: '🛑 Best Stop',
     checklist: '✅ Checklist',
@@ -921,6 +964,7 @@ const L = {
     locTap: 'Apasă pentru locație',
     locGetting: 'Se obține locația…',
     bestStopSub: 'Combustibil + Mâncare + Parcare',
+    coordLabel: '📍 Punct de căutare (opțional — gol = folosește GPS)',
     sectCat: 'Categorii',
     navHome: 'Acasă', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Jurnal', navLang: 'Limbă',
     checkHome: '🏠 Înainte de plecare — Acasă',
@@ -941,7 +985,7 @@ const L = {
     notesSaveBtn: '💾 Salvează notițele',
   },
   en: {
-    home: '🚛 ConvoyLocator',
+    home: '',
     results: 'Results',
     beststop: '🛑 Best Stop',
     checklist: '✅ Checklist',
@@ -965,6 +1009,7 @@ const L = {
     locTap: 'Tap to get location',
     locGetting: 'Getting location…',
     bestStopSub: 'Fuel + Food + Parking',
+    coordLabel: '📍 Search point (optional — empty = use GPS)',
     sectCat: 'Categories',
     navHome: 'Home', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Journal', navLang: 'Language',
     checkHome: '🏠 Before departure — Home',
@@ -1163,9 +1208,26 @@ async function api(path, method, body) {
   return r.json();
 }
 
+// ── Search location resolver ──────────────────────────────────────────────────
+// Returns {lat, lng} from custom coord input if filled, else from GPS.
+// Returns null if neither is available.
+function getSearchLoc() {
+  const raw = (document.getElementById('custom-coord')?.value || '').trim();
+  if (raw) {
+    const parts = raw.split(/[,;\s]+/).map(Number);
+    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return { lat: parts[0], lng: parts[1] };
+    }
+    showToast('❌ Érvénytelen koordináta — pl: 47.1182, 21.8173', 'error');
+    return null;
+  }
+  return S.loc;
+}
+
 // ── Search ────────────────────────────────────────────────────────────────────
 async function doSearch(category) {
-  if (!S.loc) { showToast(t('noLoc'), 'error'); getLocation(); return; }
+  const loc = getSearchLoc();
+  if (!loc) { showToast(t('noLoc'), 'error'); getLocation(); return; }
   navTo('results');
   const label = document.getElementById('res-label');
   const list  = document.getElementById('results-list');
@@ -1174,7 +1236,7 @@ async function doSearch(category) {
   S.category = category;
 
   try {
-    const data = await api('/api/search', 'POST', { lat: S.loc.lat, lng: S.loc.lng, category, lang: S.lang });
+    const data = await api('/api/search', 'POST', { lat: loc.lat, lng: loc.lng, category, lang: S.lang });
     S.results = data.results || [];
     renderResults();
   } catch (e) {
@@ -1203,13 +1265,14 @@ function renderResults() {
 // ── Best Stop ─────────────────────────────────────────────────────────────────
 async function doBestStop() {
   if (S.screen !== 'beststop') navTo('beststop');
-  if (!S.loc) { showToast(t('noLoc'), 'error'); getLocation(); return; }
+  const loc = getSearchLoc();
+  if (!loc) { showToast(t('noLoc'), 'error'); getLocation(); return; }
 
   const list = document.getElementById('beststop-list');
   list.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div><div>${t('searching')}</div></div>`;
 
   try {
-    const data = await api('/api/best-stop', 'POST', { lat: S.loc.lat, lng: S.loc.lng, lang: S.lang });
+    const data = await api('/api/best-stop', 'POST', { lat: loc.lat, lng: loc.lng, lang: S.lang });
     S.clusters = data.clusters || [];
     renderBestStop();
   } catch (e) {
@@ -1355,14 +1418,16 @@ function renderJournal() {
       <div class="journal-card-header">
         <div>
           <span class="journal-card-id">#${e.id}</span>
-          <span style="color:var(--text-dim);font-size:11px;margin-left:6px">${e.date}</span>
+          ${e.datum && e.datum !== '-' ? `<span style="color:var(--text-muted);font-size:12px;margin-left:8px">📅 ${e.datum}</span>` : ''}
         </div>
       </div>
-      <div class="journal-card-route">🛣 ${e.route}</div>
+      <div class="journal-card-route" style="font-size:15px;font-weight:700;margin-bottom:6px">🚗 ${e.rendszam || '-'}</div>
       <div class="journal-card-meta">
-        ${e.ast && e.ast !== '-' ? `<span class="journal-tag">📄 ${e.ast}</span>` : ''}
-        ${e.km  && e.km  !== '-' ? `<span class="journal-tag">🔢 ${e.km} km</span>` : ''}
-        ${e.dims && e.dims !== '-' ? `<span class="journal-tag">📐 ${e.dims}</span>` : ''}
+        ${e.szallito   && e.szallito   !== '-' ? `<span class="journal-tag">🏢 ${e.szallito}</span>`   : ''}
+        ${e.kisert_rsz && e.kisert_rsz !== '-' ? `<span class="journal-tag">🚛 ${e.kisert_rsz}</span>` : ''}
+        ${e.index_ind  && e.index_ind  !== '-' ? `<span class="journal-tag">↗ ${e.index_ind} km</span>` : ''}
+        ${e.index_erk  && e.index_erk  !== '-' ? `<span class="journal-tag">↙ ${e.index_erk} km</span>` : ''}
+        ${e.route      && e.route      !== '-' ? `<span class="journal-tag">🛣 ${e.route}</span>`      : ''}
       </div>
       ${e.notes ? `<div class="journal-tag-note">📝 ${e.notes}</div>` : ''}
       <div class="journal-card-actions">
@@ -1374,24 +1439,24 @@ function renderJournal() {
 
 // ── Journal Modal ─────────────────────────────────────────────────────────────
 function openJrnModal() {
-  document.getElementById('jf-route').value = '';
-  document.getElementById('jf-ast').value   = '';
-  document.getElementById('jf-km').value    = '';
-  document.getElementById('jf-dims').value  = '';
-  document.getElementById('jf-notes').value = '';
+  ['jf-rendszam','jf-szallito','jf-kisert','jf-datum','jf-ind','jf-erk','jf-route','jf-notes']
+    .forEach(id => { document.getElementById(id).value = ''; });
   showModal('jrn-modal');
 }
 
 async function saveJrnEntry() {
-  const route = document.getElementById('jf-route').value.trim();
-  if (!route) { document.getElementById('jf-route').focus(); return; }
+  const rendszam = document.getElementById('jf-rendszam').value.trim();
+  if (!rendszam) { document.getElementById('jf-rendszam').focus(); return; }
   try {
     await api(`/api/journal/${S.chatId}`, 'POST', {
-      route,
-      ast:   document.getElementById('jf-ast').value.trim()   || '-',
-      km:    document.getElementById('jf-km').value.trim()    || '-',
-      dims:  document.getElementById('jf-dims').value.trim()  || '-',
-      notes: document.getElementById('jf-notes').value.trim() || '',
+      route:      document.getElementById('jf-route').value.trim()    || '-',
+      rendszam,
+      szallito:   document.getElementById('jf-szallito').value.trim() || '-',
+      kisert_rsz: document.getElementById('jf-kisert').value.trim()   || '-',
+      datum:      document.getElementById('jf-datum').value.trim()    || '-',
+      index_ind:  document.getElementById('jf-ind').value.trim()      || '-',
+      index_erk:  document.getElementById('jf-erk').value.trim()      || '-',
+      notes:      document.getElementById('jf-notes').value.trim()    || '',
     });
     closeJrnModal();
     showToast(t('entrySaved'), 'success');
@@ -1408,11 +1473,14 @@ function closeJrnModal(ev) {
 
 // ── Journal Edit ──────────────────────────────────────────────────────────────
 const EDIT_FIELDS = {
-  route: { label: '🛣 Útvonal', placeholder: 'Budapest → Debrecen' },
-  ast:   { label: '📄 AST szám', placeholder: '2024/1234' },
-  km:    { label: '🔢 Km', placeholder: '248' },
-  dims:  { label: '📐 Méretek', placeholder: '28x2.8x4.3m, 110t' },
-  notes: { label: '📝 Megjegyzés', placeholder: '' },
+  rendszam:   { label: '🚗 Rendszám',                   placeholder: 'ABC-123' },
+  szallito:   { label: '🏢 Szállító',                   placeholder: 'Cég neve' },
+  kisert_rsz: { label: '🚛 Kísért jármű rendszáma',     placeholder: 'XY-1234' },
+  datum:      { label: '📅 Dátum / Óra',                placeholder: '2025.06.12 — 08:30' },
+  index_ind:  { label: '🔢 Index Km — Induláskor',      placeholder: '124500' },
+  index_erk:  { label: '🔢 Index Km — Érkezéskor',      placeholder: '124748' },
+  route:      { label: '🛣 Útvonal',                    placeholder: 'Budapest → Debrecen' },
+  notes:      { label: '📝 Megjegyzés',                 placeholder: '' },
 };
 
 function openEditJrn(id) {
