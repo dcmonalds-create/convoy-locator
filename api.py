@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from telegram import Update
+from telegram import MenuButtonWebApp, Update, WebAppInfo
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -134,6 +134,22 @@ async def lifespan(fast_app: FastAPI):
         log.info("Webhook registered: %s/webhook", webhook_url)
     else:
         log.warning("WEBHOOK_URL not set — only REST API active (no Telegram updates)")
+
+    # Menü gomb (beviteli mező melletti "Open App") friss path-ra állítása minden
+    # deploy-kor → iOS Telegram WebView kénytelen friss verziót letölteni.
+    import time as _time
+    webapp_url = os.getenv("WEBAPP_URL", "").rstrip("/")
+    if webapp_url:
+        try:
+            await ptb_app.bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="ConvoyLocator",
+                    web_app=WebAppInfo(url=f"{webapp_url}/app/{int(_time.time())}"),
+                )
+            )
+            log.info("Menu button set to fresh /app path")
+        except Exception:
+            log.exception("Failed to set chat menu button")
 
     yield
 
@@ -282,8 +298,30 @@ async def health():
     return {"status": "ok", "service": "ConvoyLocator", "version": "2.0"}
 
 
-# ── Static Files — Mini App (must be LAST so API routes take priority) ─────────
+# ── Mini App entry on a novel PATH — defeats iOS Telegram WebView cache ─────────
+# Az iOS Telegram WKWebView a fájlt az ÚTVONAL alapján cache-eli, a query (?v=)
+# nem mindig elég. A bot a /app/{cache_bust} path-ra mutat egyedi időbélyeggel,
+# amit az eszköz SOHA nem látott → kénytelen frissen letölteni.
+
+from fastapi.responses import HTMLResponse  # noqa: E402
 
 _webapp_dir = pathlib.Path(__file__).parent / "webapp"
+
+_NO_CACHE = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+@app.get("/app/{cache_bust}", response_class=HTMLResponse)
+async def serve_app(cache_bust: str):
+    """Mindig friss index.html bármilyen /app/<bélyeg> útvonalon."""
+    html = (_webapp_dir / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html, headers=_NO_CACHE)
+
+
+# ── Static Files — Mini App (must be LAST so API routes take priority) ─────────
+
 if _webapp_dir.exists():
     app.mount("/", StaticFiles(directory=str(_webapp_dir), html=True), name="webapp")

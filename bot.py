@@ -381,7 +381,8 @@ def _location_keyboard(ctx: ContextTypes.DEFAULT_TYPE) -> ReplyKeyboardMarkup:
     webapp_url = os.getenv("WEBAPP_URL", "").rstrip("/")
     if webapp_url:
         import time as _time
-        rows.append([KeyboardButton("🚛 ConvoyLocator App", web_app=WebAppInfo(url=f"{webapp_url}/?v={int(_time.time())}"))])
+        # Egyedi PATH minden megnyitáskor → iOS Telegram WebView kénytelen friss letölteni
+        rows.append([KeyboardButton("🚛 ConvoyLocator App", web_app=WebAppInfo(url=f"{webapp_url}/app/{int(_time.time())}"))])
     rows += [
         [KeyboardButton(_t(ctx, "location_btn"), request_location=True)],
         [KeyboardButton(_t(ctx, "best_stop_btn"))],
