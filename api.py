@@ -99,20 +99,18 @@ ptb_app: Application | None = None
 
 
 def _check_storage() -> None:
-    """Startup-on ellenőrzi, hogy a persistent volume tényleg mountolva van."""
-    storage = pathlib.Path(os.getenv("STORAGE_DIR", ""))
-    sentinel = storage / ".convoy_volume_check"
+    """Startup-on ellenőrzi, hogy a Postgres kapcsolat működik."""
+    import psycopg2
+    db_url = os.getenv("DATABASE_URL", "").replace("postgres://", "postgresql://", 1)
+    if not db_url:
+        log.critical("DATABASE_URL not set — journal data will NOT be persisted!")
+        return
     try:
-        sentinel.write_text("ok", encoding="utf-8")
-        assert sentinel.read_text(encoding="utf-8") == "ok"
-        sentinel.unlink()
-        log.info("Storage volume OK: %s", storage)
+        conn = psycopg2.connect(db_url)
+        conn.close()
+        log.info("PostgreSQL connection OK — journal data is persistent")
     except Exception as exc:
-        log.critical(
-            "STORAGE VOLUME CHECK FAILED at '%s': %s — journal data will be LOST on redeploy! "
-            "Ensure STORAGE_DIR=/data is set and the Railway volume is mounted.",
-            storage, exc,
-        )
+        log.critical("PostgreSQL connection FAILED: %s", exc)
 
 
 @asynccontextmanager
