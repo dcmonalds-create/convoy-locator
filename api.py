@@ -295,6 +295,116 @@ async def api_journal_delete(chat_id: int, entry_id: int):
     return {"ok": True}
 
 
+class JournalExportReq(BaseModel):
+    period:   str = "all"   # week | month | all
+    month:    str = ""      # YYYY-MM, only used when period=month
+    filename: str = ""
+
+
+def _export_filter(entries: list, period: str, month: str) -> list:
+    import datetime as _dt
+    if period == "all":
+        return entries
+    now = _dt.date.today()
+    if period == "week":
+        # ISO hét: hétfőtől vasárnapig
+        mon = now - _dt.timedelta(days=now.weekday())
+        sun = mon + _dt.timedelta(days=6)
+        def in_week(e):
+            raw = e.get("datum_ind") or e.get("date", "")
+            if not raw or raw == "-":
+                return False
+            try:
+                d = _dt.date.fromisoformat(raw[:10])
+                return mon <= d <= sun
+            except Exception:
+                return False
+        return [e for e in entries if in_week(e)]
+    if period == "month":
+        pfx = month or now.strftime("%Y-%m")
+        def in_month(e):
+            raw = e.get("datum_ind") or e.get("date", "")
+            return bool(raw and raw[:7] == pfx)
+        return [e for e in entries if in_month(e)]
+    return entries
+
+
+def _build_csv(entries: list, period: str, month: str) -> str:
+    cols = ["ID","Szállító","Rendszám","Sofőr neve","Kísért RSZ",
+            "Indulás dátuma","Érkezés dátuma","Index km (ind.)","Index km (erk.)",
+            "Megtett km","Útvonal","Google Maps útvonal","Megjegyzés"]
+
+    def esc(v):
+        return '"' + str(v or "").replace('"', '""') + '"'
+
+    def parse_km(v):
+        import re as _re
+        m = _re.sub(r"[^\d]", "", str(v or ""))
+        return int(m) if m else 0
+
+    rows = []
+    for e in entries:
+        rows.append(",".join(esc(x) for x in [
+            e.get("id",""), e.get("szallito",""), e.get("rendszam",""),
+            e.get("sofor_neve",""), e.get("kisert_rsz",""),
+            e.get("datum_ind",""), e.get("datum_erk",""),
+            e.get("index_ind",""), e.get("index_erk",""),
+            e.get("megtett_km",""), e.get("route",""),
+            e.get("gmaps_route",""), e.get("notes",""),
+        ]))
+
+    total_km = sum(parse_km(e.get("megtett_km")) for e in entries)
+    summary = ",".join(esc(x) for x in [
+        "ÖSSZESÍTÉS", f"{len(entries)} fuvar", "", "", "", "", "", "", "",
+        f"{total_km:,} km".replace(",", " ") if total_km else "-",
+        "", "", "",
+    ])
+
+    label = {"week": "Ez a hét", "month": month, "all": "Összes"}.get(period, "")
+    header_note = f"# {label} · {len(entries)} fuvar · {total_km} km\r\n"
+    bom = "﻿"
+    return bom + header_note + ",".join(f'"{c}"' for c in cols) + "\r\n" + "\r\n".join(rows) + "\r\n" + summary
+
+
+@app.post("/api/journal/{chat_id}/export")
+async def api_journal_export(chat_id: int, req: JournalExportReq):
+    """Szűrt naplót CSV fájlként elküldi a felhasználó Telegram chatjébe."""
+    if ptb_app is None:
+        raise HTTPException(status_code=503, detail="Bot not initialized")
+    all_entries = journal_mod.load(chat_id)
+    entries = _export_filter(all_entries, req.period, req.month)
+    if not entries:
+        raise HTTPException(status_code=404, detail="Nincs bejegyzés ebben az időszakban")
+
+    csv_str = _build_csv(entries, req.period, req.month)
+    bio = io.BytesIO(csv_str.encode("utf-8"))
+
+    fname = req.filename or f"naplo_{datetime.datetime.now().strftime('%Y%m%d')}.csv"
+    period_label = {"week": "Ez a hét", "month": req.month, "all": "Összes"}.get(req.period, "")
+
+    import re as _re
+    total_km = sum(
+        int(_re.sub(r"[^\d]", "", str(e.get("megtett_km") or "")))
+        for e in entries
+        if _re.sub(r"[^\d]", "", str(e.get("megtett_km") or ""))
+    )
+
+    caption = (
+        f"📊 Szállítási napló export\n"
+        f"📅 {period_label} · {len(entries)} fuvar\n"
+        f"🔢 Megtett km összesen: {total_km:,} km\n"
+        f"📁 {fname}"
+    ).replace(",", " ")
+    try:
+        await ptb_app.bot.send_document(
+            chat_id=chat_id, document=bio, filename=fname, caption=caption
+        )
+    except Exception as e:
+        log.exception("Journal export send failed")
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"ok": True, "count": len(entries), "total_km": total_km}
+
+
 @app.post("/api/journal/{chat_id}/backup")
 async def api_journal_backup(chat_id: int):
     """A teljes naplót JSON fájlként elküldi a felhasználó Telegram chatjébe.

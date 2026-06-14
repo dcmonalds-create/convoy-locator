@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='9';
+  var V='10';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -522,6 +522,14 @@ html, body {
 .journal-search-input:focus { border-color: var(--accent); }
 .journal-search-input::placeholder { color: var(--text-muted); }
 
+/* ── Export modal ────────────────────────────────────────────────────────────── */
+.export-period-row { display:flex; gap:6px; margin-bottom:14px; }
+.export-period-btn { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text-muted); font-size:13px; font-weight:600; padding:9px 4px; cursor:pointer; }
+.export-period-btn.active { background:var(--accent); border-color:var(--accent); color:#000; }
+.export-month-row { margin-bottom:14px; }
+.export-actions { display:flex; gap:10px; }
+.export-actions .btn { flex:1; font-size:14px; }
+
 /* ── Megtett km összegző sáv ─────────────────────────────────────────────────── */
 .km-summary {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -825,7 +833,7 @@ html, body {
     <div class="journal-search-bar" style="display:flex;gap:8px;align-items:center">
       <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, szállító, sofőr…" oninput="filterJournal()" style="flex:1">
       <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="backupJournal()" title="Backup a Telegram chatbe">💾</button>
-      <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="exportCSV()" title="CSV export">⬇️</button>
+      <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="openExportModal()" title="Export">📊</button>
     </div>
     <div class="journal-list" id="journal-list"></div>
   </div>
@@ -856,6 +864,30 @@ html, body {
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closeScModal()">Mégse</button>
         <button class="btn btn-primary" onclick="saveShortcut()">⭐ Mentés</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Export ── -->
+  <div class="modal-overlay hidden" id="export-modal" onclick="closeExportModal(event)">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">📊 Export</div>
+      <div class="modal-body">
+        <div class="form-label" style="margin-bottom:8px">Időszak</div>
+        <div class="export-period-row">
+          <button class="export-period-btn active" id="exp-btn-week"  onclick="setExportPeriod('week')">Heti</button>
+          <button class="export-period-btn"        id="exp-btn-month" onclick="setExportPeriod('month')">Havi</button>
+          <button class="export-period-btn"        id="exp-btn-all"   onclick="setExportPeriod('all')">Összes</button>
+        </div>
+        <div id="exp-month-row" class="export-month-row" style="display:none">
+          <select id="exp-month-sel" class="km-month-select" style="width:100%;max-width:100%"></select>
+        </div>
+        <div id="exp-preview" style="font-size:12px;color:var(--text-muted);margin-bottom:14px"></div>
+        <div class="export-actions">
+          <button class="btn btn-ghost" onclick="doExport('download')">⬇️ Letöltés</button>
+          <button class="btn btn-primary" onclick="doExport('telegram')">📤 Telegram</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1640,24 +1672,140 @@ function filterJournal() {
 }
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
-function exportCSV() {
-  if (!S.journal.length) { showToast('Nincs exportálható bejegyzés', 'error'); return; }
-  const cols = ['ID','Szállító','Rendszám','Sofőr','Kísért RSZ','Indulás dátum','Érkezés dátum','Index Km (ind.)','Index Km (erk.)','Megtett Km','Útvonal','Google Maps','Megjegyzés'];
-  const esc = v => `"${(v||'').replace(/"/g,'""')}"`;
-  const rows = S.journal.map(e => [
-    e.id, e.szallito, e.rendszam, e.sofor_neve, e.kisert_rsz,
+// ── Export helpers ────────────────────────────────────────────────────────────
+const _EXP_COLS = ['ID','Szállító','Rendszám','Sofőr neve','Kísért RSZ',
+  'Indulás dátuma','Érkezés dátuma','Index km (ind.)','Index km (erk.)',
+  'Megtett km','Útvonal','Google Maps útvonal','Megjegyzés'];
+
+function _expRow(e) {
+  const esc = v => `"${(String(v||'')).replace(/"/g,'""')}"`;
+  return [e.id, e.szallito, e.rendszam, e.sofor_neve, e.kisert_rsz,
     e.datum_ind, e.datum_erk, e.index_ind, e.index_erk,
-    e.megtett_km, e.route, e.gmaps_route, e.notes
-  ].map(esc).join(','));
-  const csv = '﻿' + [cols.join(','), ...rows].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = `naplo_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('✅ CSV letöltve', 'success');
+    e.megtett_km, e.route, e.gmaps_route, e.notes].map(esc).join(',');
+}
+
+function _expSummaryRow(entries) {
+  const totalKm = entries.reduce((s,e) => s + parseKm(e.megtett_km), 0);
+  const esc = v => `"${v}"`;
+  return [esc('ÖSSZESÍTÉS'), esc(`${entries.length} fuvar`), '', '', '', '', '', '', '',
+    esc(totalKm ? totalKm.toLocaleString('hu-HU') + ' km' : '-'), '', '', ''].join(',');
+}
+
+function _buildCSV(entries) {
+  const esc = v => `"${v}"`;
+  const rows = entries.map(_expRow);
+  return '﻿' + [_EXP_COLS.map(esc).join(','), ...rows, _expSummaryRow(entries)].join('\r\n');
+}
+
+function _expFilename(period, monthVal) {
+  const d = new Date().toISOString().slice(0,10);
+  if (period === 'week')  return `naplo_heti_${d}.csv`;
+  if (period === 'month') return `naplo_${monthVal||d.slice(0,7)}.csv`;
+  return `naplo_osszes_${d}.csv`;
+}
+
+// ── Export modal ──────────────────────────────────────────────────────────────
+const _expState = { period: 'week', month: '' };
+
+function _isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const y = d.getUTCFullYear();
+  const w = Math.ceil((((d - new Date(Date.UTC(y,0,1))) / 86400000) + 1) / 7);
+  return `${y}-W${String(w).padStart(2,'0')}`;
+}
+
+function _filterEntries(period, month) {
+  const all = S.journal || [];
+  if (period === 'all') return all;
+  const now = new Date();
+  if (period === 'week') {
+    const curWeek = _isoWeek(now);
+    return all.filter(e => {
+      const d = e.datum_ind && e.datum_ind !== '-' ? e.datum_ind : (e.date||'');
+      try { return d && _isoWeek(new Date(d.slice(0,10))) === curWeek; } catch(_) { return false; }
+    });
+  }
+  if (period === 'month') {
+    const m = month || now.toISOString().slice(0,7);
+    return all.filter(e => {
+      const d = e.datum_ind && e.datum_ind !== '-' ? e.datum_ind : (e.date||'');
+      return d && d.startsWith(m);
+    });
+  }
+  return all;
+}
+
+function openExportModal() {
+  if (!S.journal.length) { showToast('Nincs exportálható bejegyzés', 'error'); return; }
+  // feltölt hónap-választót
+  const months = [...new Set((S.journal||[]).map(e => {
+    const d = e.datum_ind && e.datum_ind !== '-' ? e.datum_ind : (e.date||'');
+    return d ? d.slice(0,7) : null;
+  }).filter(Boolean))].sort().reverse();
+  const sel = document.getElementById('exp-month-sel');
+  sel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join('');
+  _expState.month = months[0] || new Date().toISOString().slice(0,7);
+  sel.value = _expState.month;
+  setExportPeriod('week');
+  showModal('export-modal');
+}
+
+function closeExportModal(e) {
+  if (!e || e.target === document.getElementById('export-modal'))
+    hideModal('export-modal');
+}
+
+function setExportPeriod(p) {
+  _expState.period = p;
+  ['week','month','all'].forEach(k =>
+    document.getElementById(`exp-btn-${k}`).classList.toggle('active', k === p));
+  document.getElementById('exp-month-row').style.display = p === 'month' ? '' : 'none';
+  if (p === 'month') {
+    _expState.month = document.getElementById('exp-month-sel').value;
+  }
+  _updateExpPreview();
+}
+
+function _updateExpPreview() {
+  const sel = document.getElementById('exp-month-sel');
+  if (_expState.period === 'month') _expState.month = sel.value;
+  const entries = _filterEntries(_expState.period, _expState.month);
+  const km = entries.reduce((s,e) => s + parseKm(e.megtett_km), 0);
+  const label = { week:'Ez a hét', month:_expState.month, all:'Összes' }[_expState.period];
+  document.getElementById('exp-preview').textContent =
+    `${label} · ${entries.length} fuvar · ${km ? km.toLocaleString('hu-HU') + ' km' : '0 km'}`;
+}
+
+async function doExport(action) {
+  const sel = document.getElementById('exp-month-sel');
+  if (_expState.period === 'month') _expState.month = sel.value;
+  const entries = _filterEntries(_expState.period, _expState.month);
+  if (!entries.length) { showToast('Nincs bejegyzés ebben az időszakban', 'error'); return; }
+
+  const csv      = _buildCSV(entries);
+  const filename = _expFilename(_expState.period, _expState.month);
+  hideModal('export-modal');
+
+  if (action === 'download') {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+    showToast(`✅ CSV letöltve (${entries.length} sor)`, 'success');
+  } else {
+    try {
+      const r = await api(`/api/journal/${S.chatId}/export`, 'POST', {
+        period: _expState.period,
+        month:  _expState.month,
+        filename,
+      });
+      showToast(`📤 Elküldve Telegramra (${r.count} fuvar · ${r.total_km} km)`, 'success');
+    } catch(e) {
+      showToast('❌ Küldés sikertelen: ' + e.message, 'error');
+    }
+  }
 }
 
 async function backupJournal() {
