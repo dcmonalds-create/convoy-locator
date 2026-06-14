@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='7';
+  var V='8';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -792,6 +792,7 @@ html, body {
   <div class="screen hidden" id="s-journal">
     <div class="journal-search-bar" style="display:flex;gap:8px;align-items:center">
       <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, szállító, sofőr…" oninput="filterJournal()" style="flex:1">
+      <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="backupJournal()" title="Backup a Telegram chatbe">💾</button>
       <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="exportCSV()" title="CSV export">⬇️</button>
     </div>
     <div class="journal-list" id="journal-list"></div>
@@ -1579,6 +1580,16 @@ function exportCSV() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('✅ CSV letöltve', 'success');
+}
+
+async function backupJournal() {
+  if (!S.journal || !S.journal.length) { showToast('⚠️ Nincs mit menteni', 'error'); return; }
+  try {
+    const r = await api(`/api/journal/${S.chatId}/backup`, 'POST');
+    showToast(`💾 Backup elküldve a chatbe (${r.count} bejegyzés)`, 'success');
+  } catch (e) {
+    showToast('❌ Backup sikertelen: ' + e.message, 'error');
+  }
 }
 
 // ── Shortcuts ─────────────────────────────────────────────────────────────────

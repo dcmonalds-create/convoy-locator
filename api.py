@@ -11,6 +11,8 @@ Set in environment:
 """
 from __future__ import annotations
 
+import datetime
+import io
 import json
 import logging
 import os
@@ -291,6 +293,34 @@ async def api_journal_delete(chat_id: int, entry_id: int):
     if not ok:
         raise HTTPException(status_code=404, detail="Entry not found")
     return {"ok": True}
+
+
+@app.post("/api/journal/{chat_id}/backup")
+async def api_journal_backup(chat_id: int):
+    """A teljes naplót JSON fájlként elküldi a felhasználó Telegram chatjébe.
+    Off-site backup: a Telegram örökre megőrzi, függetlenül a Railway volume-tól."""
+    if ptb_app is None:
+        raise HTTPException(status_code=503, detail="Bot not initialized")
+    entries = journal_mod.load(chat_id)
+    if not entries:
+        raise HTTPException(status_code=404, detail="No entries to backup")
+
+    data = json.dumps(entries, ensure_ascii=False, indent=2).encode("utf-8")
+    bio = io.BytesIO(data)
+    fname = f"naplo_backup_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.json"
+    caption = (
+        f"💾 Szállítási napló biztonsági mentés\n"
+        f"📋 {len(entries)} bejegyzés · {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        f"⚠️ Ne töröld ezt az üzenetet — ebből vissza lehet állítani a naplót."
+    )
+    try:
+        await ptb_app.bot.send_document(
+            chat_id=chat_id, document=bio, filename=fname, caption=caption
+        )
+    except Exception as e:
+        log.exception("Journal backup send failed")
+        raise HTTPException(status_code=500, detail=f"Backup küldés sikertelen: {e}")
+    return {"ok": True, "count": len(entries)}
 
 
 @app.get("/health")
