@@ -380,7 +380,7 @@ def _location_keyboard(ctx: ContextTypes.DEFAULT_TYPE) -> ReplyKeyboardMarkup:
     rows = []
     webapp_url = os.getenv("WEBAPP_URL", "").rstrip("/")
     if webapp_url:
-        rows.append([KeyboardButton("🚛 ConvoyLocator App", web_app=WebAppInfo(url=webapp_url))])
+        rows.append([KeyboardButton("🚛 ConvoyLocator App", web_app=WebAppInfo(url=f"{webapp_url}/?v=3"))])
     rows += [
         [KeyboardButton(_t(ctx, "location_btn"), request_location=True)],
         [KeyboardButton(_t(ctx, "best_stop_btn"))],
