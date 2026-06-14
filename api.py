@@ -466,6 +466,33 @@ async def api_journal_backup(chat_id: int):
     return {"ok": True, "count": len(entries)}
 
 
+@app.get("/api/resolve-maps-link")
+async def resolve_maps_link(url: str):
+    """Google Maps link (rövid vagy hosszú) → {lat, lng}."""
+    import re as _re
+    import httpx as _httpx
+    try:
+        async with _httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
+            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        final_url = str(r.url)
+        # /@lat,lng,zoom
+        m = _re.search(r'/@(-?\d+\.\d+),(-?\d+\.\d+)', final_url)
+        if not m:
+            # ?q=lat,lng or ?q=loc:lat+lng
+            m = _re.search(r'[?&]q=(?:loc:)?(-?\d+\.\d+)[,+](-?\d+\.\d+)', final_url)
+        if not m:
+            # in page body
+            m = _re.search(r'@(-?\d{1,3}\.\d{5,}),(-?\d{1,3}\.\d{5,})', r.text[:8000])
+        if m:
+            return {"lat": round(float(m.group(1)), 6), "lng": round(float(m.group(2)), 6)}
+        raise HTTPException(status_code=400, detail="Koordináta nem található a linkben")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("resolve_maps_link failed")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "ConvoyLocator", "version": "2.0"}

@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='14';
+  var V='15';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -768,7 +768,10 @@ html, body {
 
     <div class="coord-input-wrap">
       <div class="coord-input-label" data-i18n="coordLabel">📍 Keresési pont (opcionális — üresen hagyva GPS-t használ)</div>
-      <input class="coord-input" id="custom-coord" type="text" placeholder="47.1182, 21.8173" inputmode="decimal">
+      <input class="coord-input" id="custom-coord" type="text"
+        placeholder="Google Maps link  vagy  47.1182, 21.8173"
+        inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false"
+        oninput="onCoordInput(this)">
     </div>
 
     <button class="best-stop-btn" onclick="doBestStop()">
@@ -1382,16 +1385,41 @@ async function api(path, method, body) {
 }
 
 // ── Search location resolver ──────────────────────────────────────────────────
+
+let _coordResolveTimer = null;
+
+function onCoordInput(inp) {
+  const v = inp.value.trim();
+  if (!v.match(/^https?:\/\//)) return; // not a URL, leave as-is
+  clearTimeout(_coordResolveTimer);
+  _coordResolveTimer = setTimeout(() => _resolveMapsLink(inp, v), 400);
+}
+
+async function _resolveMapsLink(inp, url) {
+  inp.disabled = true;
+  inp.value = '⏳ Koordináta kinyerése…';
+  try {
+    const r = await api(`/api/resolve-maps-link?url=${encodeURIComponent(url)}`);
+    inp.value = `${r.lat}, ${r.lng}`;
+    showToast('📍 Koordináta megvan', 'success');
+  } catch(e) {
+    inp.value = '';
+    showToast('❌ Nem sikerült: ' + e.message, 'error');
+  } finally {
+    inp.disabled = false;
+  }
+}
+
 // Returns {lat, lng} from custom coord input if filled, else from GPS.
 // Returns null if neither is available.
 function getSearchLoc() {
   const raw = (document.getElementById('custom-coord')?.value || '').trim();
-  if (raw) {
+  if (raw && !raw.startsWith('⏳')) {
     const parts = raw.split(/[,;\s]+/).map(Number);
     if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       return { lat: parts[0], lng: parts[1] };
     }
-    showToast('❌ Érvénytelen koordináta — pl: 47.1182, 21.8173', 'error');
+    showToast('❌ Érvénytelen — illessz be Maps linket vagy koordinátát', 'error');
     return null;
   }
   return S.loc;
