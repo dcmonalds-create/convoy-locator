@@ -353,9 +353,7 @@ def _export_filter(entries: list, period: str, month: str) -> list:
 
 
 def _build_csv(entries: list, period: str, month: str) -> str:
-    cols = ["ID","Szállító","Rendszám","Sofőr neve","Kísért RSZ",
-            "Indulás dátuma","Érkezés dátuma","Index km (ind.)","Index km (erk.)",
-            "Megtett km","Útvonal","Google Maps útvonal","Megjegyzés"]
+    cols = ["#", "Dátum", "Szállító", "Rendszám", "Útvonal", "Megtett km", "Megjegyzés"]
 
     def esc(v):
         return '"' + str(v or "").replace('"', '""') + '"'
@@ -368,19 +366,15 @@ def _build_csv(entries: list, period: str, month: str) -> str:
     rows = []
     for e in entries:
         rows.append(",".join(esc(x) for x in [
-            e.get("id",""), e.get("szallito",""), e.get("rendszam",""),
-            e.get("sofor_neve",""), e.get("kisert_rsz",""),
-            e.get("datum_ind",""), e.get("datum_erk",""),
-            e.get("index_ind",""), e.get("index_erk",""),
-            e.get("megtett_km",""), e.get("route",""),
-            e.get("gmaps_route",""), e.get("notes",""),
+            e.get("id", ""), e.get("date", ""), e.get("szallito", ""),
+            e.get("rendszam", ""), e.get("route", ""),
+            e.get("megtett_km", ""), e.get("notes", ""),
         ]))
 
     total_km = sum(parse_km(e.get("megtett_km")) for e in entries)
     summary = ",".join(esc(x) for x in [
-        "ÖSSZESÍTÉS", f"{len(entries)} fuvar", "", "", "", "", "", "", "",
-        f"{total_km:,} km".replace(",", " ") if total_km else "-",
-        "", "", "",
+        "ÖSSZESÍTÉS", f"{len(entries)} fuvar", "", "",
+        "", f"{total_km:,} km".replace(",", " ") if total_km else "-", "",
     ])
 
     label = {"week": "Ez a hét", "month": month, "all": "Összes"}.get(period, "")

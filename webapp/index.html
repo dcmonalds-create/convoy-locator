@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='11';
+  var V='12';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -1675,22 +1675,19 @@ function filterJournal() {
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
 // ── Export helpers ────────────────────────────────────────────────────────────
-const _EXP_COLS = ['ID','Szállító','Rendszám','Sofőr neve','Kísért RSZ',
-  'Indulás dátuma','Érkezés dátuma','Index km (ind.)','Index km (erk.)',
-  'Megtett km','Útvonal','Google Maps útvonal','Megjegyzés'];
+const _EXP_COLS = ['#','Dátum','Szállító','Rendszám','Útvonal','Megtett km','Megjegyzés'];
 
 function _expRow(e) {
   const esc = v => `"${(String(v||'')).replace(/"/g,'""')}"`;
-  return [e.id, e.szallito, e.rendszam, e.sofor_neve, e.kisert_rsz,
-    e.datum_ind, e.datum_erk, e.index_ind, e.index_erk,
-    e.megtett_km, e.route, e.gmaps_route, e.notes].map(esc).join(',');
+  return [e.id, e.date||'', e.szallito, e.rendszam,
+    e.route, e.megtett_km, e.notes].map(esc).join(',');
 }
 
 function _expSummaryRow(entries) {
   const totalKm = entries.reduce((s,e) => s + parseKm(e.megtett_km), 0);
   const esc = v => `"${v}"`;
-  return [esc('ÖSSZESÍTÉS'), esc(`${entries.length} fuvar`), '', '', '', '', '', '', '',
-    esc(totalKm ? totalKm.toLocaleString('hu-HU') + ' km' : '-'), '', '', ''].join(',');
+  return [esc('ÖSSZESÍTÉS'), esc(`${entries.length} fuvar`), '', '',
+    '', esc(totalKm ? totalKm.toLocaleString('hu-HU') + ' km' : '-'), ''].join(',');
 }
 
 function _buildCSV(entries) {
