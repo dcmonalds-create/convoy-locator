@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='8';
+  var V='9';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -522,6 +522,25 @@ html, body {
 .journal-search-input:focus { border-color: var(--accent); }
 .journal-search-input::placeholder { color: var(--text-muted); }
 
+/* ── Megtett km összegző sáv ─────────────────────────────────────────────────── */
+.km-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 10px 16px 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 7px 12px;
+}
+.km-summary-main { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.km-summary-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+.km-summary-value { font-size: 18px; font-weight: 800; color: var(--accent); line-height: 1.15; }
+.km-summary-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.km-month-select {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 12px; padding: 5px 6px; max-width: 110px; outline: none;
+}
+.km-toggle { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.km-toggle-btn { background: none; border: none; color: var(--text-muted); font-size: 12px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+.km-toggle-btn.active { background: var(--accent); color: #000; font-weight: 700; }
+
 .journal-list {
   padding: 0 16px;
   display: flex;
@@ -790,6 +809,19 @@ html, body {
 
   <!-- ── Screen: Journal ── -->
   <div class="screen hidden" id="s-journal">
+    <div class="km-summary">
+      <div class="km-summary-main">
+        <span class="km-summary-label">🔢 Megtett kilométer</span>
+        <span class="km-summary-value" id="km-total">0 km</span>
+      </div>
+      <div class="km-summary-controls">
+        <select id="km-month" class="km-month-select" style="display:none" onchange="updateKmSummary()"></select>
+        <div class="km-toggle">
+          <button id="km-tab-month" class="km-toggle-btn" onclick="setKmMode('month')">Havonta</button>
+          <button id="km-tab-all" class="km-toggle-btn active" onclick="setKmMode('all')">Összes</button>
+        </div>
+      </div>
+    </div>
     <div class="journal-search-bar" style="display:flex;gap:8px;align-items:center">
       <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, szállító, sofőr…" oninput="filterJournal()" style="flex:1">
       <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="backupJournal()" title="Backup a Telegram chatbe">💾</button>
@@ -963,6 +995,8 @@ const S = {
   category:  null,
   clusters:  [],
   journal:   [],
+  kmMode:    'all',
+  kmMonth:   '',
   shortcuts: JSON.parse(localStorage.getItem('cl_shortcuts') || '[]'),
   chatId:    null,
   notes:     localStorage.getItem('cl_notes') || '',
@@ -1502,6 +1536,7 @@ async function loadJournal() {
     const data = await api(`/api/journal/${S.chatId}`);
     S.journal = (data.entries || []).reverse();
     renderJournal();
+    updateKmSummary();
   } catch (e) {
     document.getElementById('journal-list').innerHTML =
       `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Hiba: ${e.message}</div></div>`;
@@ -1549,6 +1584,49 @@ function renderJournal(entries) {
         <button class="journal-action-btn danger" onclick="deleteJrn(${e.id})">🗑 Töröl</button>
       </div>
     </div>`).join('');
+}
+
+// ── Megtett km összegzés ──────────────────────────────────────────────────────
+function parseKm(v) {
+  if (!v) return 0;
+  // Megtett km mindig egész szám — minden nem-számjegyet eldobunk
+  // (kezeli: "401", "250 km", "1.200", "1,200", "1 200" → helyes egész)
+  const digits = String(v).replace(/[^\d]/g, '');
+  return digits ? parseInt(digits, 10) : 0;
+}
+function entryMonth(e) {
+  const d = (e.date || '').slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(d) ? d : null;
+}
+function setKmMode(mode) {
+  S.kmMode = mode;
+  document.getElementById('km-tab-month').classList.toggle('active', mode === 'month');
+  document.getElementById('km-tab-all').classList.toggle('active', mode === 'all');
+  document.getElementById('km-month').style.display = (mode === 'month') ? '' : 'none';
+  updateKmSummary();
+}
+function updateKmSummary() {
+  const entries = S.journal || [];
+  const sel = document.getElementById('km-month');
+  if (!sel) return;
+  // A select aktuális értéke az elsődleges (onchange / kézi választás), majd S.kmMonth
+  const prevSelected = sel.value || S.kmMonth;
+  const months = [...new Set(entries.map(entryMonth).filter(Boolean))].sort().reverse();
+  const wanted = months.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (sel.innerHTML !== wanted) sel.innerHTML = wanted;
+  let cur = prevSelected;
+  if (!months.includes(cur)) cur = months[0] || '';
+  S.kmMonth = cur;
+  sel.value = cur;
+
+  let total;
+  if (S.kmMode === 'month') {
+    total = entries.filter(e => entryMonth(e) === S.kmMonth)
+                   .reduce((s, e) => s + parseKm(e.megtett_km), 0);
+  } else {
+    total = entries.reduce((s, e) => s + parseKm(e.megtett_km), 0);
+  }
+  document.getElementById('km-total').textContent = total.toLocaleString('hu-HU') + ' km';
 }
 
 function filterJournal() {
