@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='12';
+  var V='13';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -1679,7 +1679,8 @@ const _EXP_COLS = ['#','Dátum','Szállító','Rendszám','Útvonal','Megtett km
 
 function _expRow(e) {
   const esc = v => `"${(String(v||'')).replace(/"/g,'""')}"`;
-  return [e.id, e.date||'', e.szallito, e.rendszam,
+  const datum = (e.datum_ind && e.datum_ind !== '-') ? e.datum_ind : (e.date||'');
+  return [e.id, datum, e.szallito, e.rendszam,
     e.route, e.megtett_km, e.notes].map(esc).join(',');
 }
 
@@ -1706,6 +1707,26 @@ function _expFilename(period, monthVal) {
 // ── Export modal ──────────────────────────────────────────────────────────────
 const _expState = { period: 'week', month: '' };
 
+// Parses entry date from datum_ind (DD.MM.YYYY - HH:MM or DD/MM/YYYY)
+// or falls back to e.date (YYYY-MM-DD HH:MM). Returns Date or null.
+function _parseDatumInd(e) {
+  const raw = (e.datum_ind && e.datum_ind !== '-') ? e.datum_ind : (e.date || '');
+  if (!raw) return null;
+  // DD.MM.YYYY or DD/MM/YYYY
+  const m1 = raw.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
+  if (m1) return new Date(+m1[3], +m1[2] - 1, +m1[1]);
+  // YYYY-MM-DD (ISO)
+  const m2 = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3]);
+  return null;
+}
+
+function _datumYearMonth(e) {
+  const d = _parseDatumInd(e);
+  if (!d || isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
 function _isoWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -1721,16 +1742,13 @@ function _filterEntries(period, month) {
   if (period === 'week') {
     const curWeek = _isoWeek(now);
     return all.filter(e => {
-      const d = e.datum_ind && e.datum_ind !== '-' ? e.datum_ind : (e.date||'');
-      try { return d && _isoWeek(new Date(d.slice(0,10))) === curWeek; } catch(_) { return false; }
+      const d = _parseDatumInd(e);
+      try { return d && _isoWeek(d) === curWeek; } catch(_) { return false; }
     });
   }
   if (period === 'month') {
     const m = month || now.toISOString().slice(0,7);
-    return all.filter(e => {
-      const d = e.datum_ind && e.datum_ind !== '-' ? e.datum_ind : (e.date||'');
-      return d && d.startsWith(m);
-    });
+    return all.filter(e => _datumYearMonth(e) === m);
   }
   return all;
 }
@@ -1738,10 +1756,7 @@ function _filterEntries(period, month) {
 function openExportModal() {
   if (!S.journal.length) { showToast('Nincs exportálható bejegyzés', 'error'); return; }
   // feltölt hónap-választót
-  const months = [...new Set((S.journal||[]).map(e => {
-    const d = e.datum_ind && e.datum_ind !== '-' ? e.datum_ind : (e.date||'');
-    return d ? d.slice(0,7) : null;
-  }).filter(Boolean))].sort().reverse();
+  const months = [...new Set((S.journal||[]).map(e => _datumYearMonth(e)).filter(Boolean))].sort().reverse();
   const sel = document.getElementById('exp-month-sel');
   sel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join('');
   _expState.month = months[0] || new Date().toISOString().slice(0,7);
