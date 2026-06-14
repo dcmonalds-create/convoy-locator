@@ -34,30 +34,34 @@ def _save(chat_id: int, entries: list[dict]) -> None:
 
 def add_entry(
     chat_id:    int,
-    rendszam:   str = "-",
     szallito:   str = "-",
+    rendszam:   str = "-",
     sofor_neve: str = "-",
     kisert_rsz: str = "-",
     datum_ind:  str = "-",
     datum_erk:  str = "-",
     index_ind:  str = "-",
     index_erk:  str = "-",
+    megtett_km: str = "-",
     route:      str = "-",
+    gmaps_route: str = "",
     notes:      str = "",
 ) -> dict:
     entries = load(chat_id)
     entry = {
-        "id":         (entries[-1]["id"] + 1) if entries else 1,
-        "rendszam":   rendszam,
-        "szallito":   szallito,
-        "sofor_neve": sofor_neve,
-        "kisert_rsz": kisert_rsz,
-        "datum_ind":  datum_ind,
-        "datum_erk":  datum_erk,
-        "index_ind":  index_ind,
-        "index_erk":  index_erk,
-        "route":      route,
-        "notes":      notes,
+        "id":          (entries[-1]["id"] + 1) if entries else 1,
+        "szallito":    szallito,
+        "rendszam":    rendszam,
+        "sofor_neve":  sofor_neve,
+        "kisert_rsz":  kisert_rsz,
+        "datum_ind":   datum_ind,
+        "datum_erk":   datum_erk,
+        "index_ind":   index_ind,
+        "index_erk":   index_erk,
+        "megtett_km":  megtett_km,
+        "route":       route,
+        "gmaps_route": gmaps_route,
+        "notes":       notes,
     }
     entries.append(entry)
     _save(chat_id, entries)
@@ -65,8 +69,9 @@ def add_entry(
 
 
 _ALLOWED_FIELDS = {
-    "rendszam", "szallito", "sofor_neve", "kisert_rsz",
-    "datum_ind", "datum_erk", "index_ind", "index_erk", "route", "notes"
+    "szallito", "rendszam", "sofor_neve", "kisert_rsz",
+    "datum_ind", "datum_erk", "index_ind", "index_erk",
+    "megtett_km", "route", "gmaps_route", "notes"
 }
 
 

@@ -122,14 +122,14 @@ html, body {
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   flex-shrink: 0;
   z-index: 10;
 }
 .nav-btn {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
   transition: color 0.15s;
   color: var(--text-muted);
@@ -138,11 +138,26 @@ html, body {
   padding: 0 0 2px;
   font-family: inherit;
 }
-.nav-btn .nav-icon { width: 24px; height: 24px; flex-shrink: 0; }
-.nav-btn .nav-icon svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.nav-btn .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
+.nav-btn .nav-icon { width: 22px; height: 22px; flex-shrink: 0; }
+.nav-btn .nav-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav-btn .nav-label { font-size: 9px; font-weight: 500; letter-spacing: 0.2px; }
 .nav-btn.active { color: var(--accent); }
 .nav-btn:active { opacity: 0.7; }
+
+/* ── Shortcuts ───────────────────────────────────────────────────────────────── */
+.shortcut-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.shortcut-card-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.shortcut-card-sub  { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.shortcut-actions   { display: flex; gap: 6px; flex-shrink: 0; }
+.shortcut-del-btn   { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--danger); font-size: 14px; padding: 6px 10px; cursor: pointer; }
 
 /* ── Location Bar ─────────────────────────────────────────────────────────────── */
 .location-bar {
@@ -764,10 +779,41 @@ html, body {
 
   <!-- ── Screen: Journal ── -->
   <div class="screen hidden" id="s-journal">
-    <div class="journal-search-bar">
-      <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, útvonal, sofőr…" oninput="filterJournal()">
+    <div class="journal-search-bar" style="display:flex;gap:8px;align-items:center">
+      <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, szállító, sofőr…" oninput="filterJournal()" style="flex:1">
+      <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="exportCSV()" title="CSV export">⬇️</button>
     </div>
     <div class="journal-list" id="journal-list"></div>
+  </div>
+
+  <!-- ── Screen: Shortcuts ── -->
+  <div class="screen hidden" id="s-shortcuts">
+    <div class="journal-search-bar">
+      <input class="journal-search-input" id="sc-search" type="text" placeholder="🔍 Keresés a shortcutok között…" oninput="renderShortcuts()">
+    </div>
+    <div class="results-list" id="shortcuts-list"></div>
+  </div>
+
+  <!-- ── Modal: Add Shortcut ── -->
+  <div class="modal-overlay hidden" id="sc-modal" onclick="closeScModal(event)">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">⭐ Új shortcut</div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label class="form-label">📛 Shortcut neve</label>
+          <input class="form-input" id="sc-name" placeholder="pl. Parkoló Bors">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🔗 Google Maps link vagy koordináta</label>
+          <input class="form-input" id="sc-url" placeholder="https://maps.google.com/… vagy 47.1182, 21.8173">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeScModal()">Mégse</button>
+        <button class="btn btn-primary" onclick="saveShortcut()">⭐ Mentés</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Bottom Navigation ── -->
@@ -788,6 +834,10 @@ html, body {
       <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div>
       <div class="nav-label" data-i18n="navJournal">Napló</div>
     </button>
+    <button class="nav-btn" data-screen="shortcuts" onclick="navTo('shortcuts')">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+      <div class="nav-label" data-i18n="navShortcuts">Shortcuts</div>
+    </button>
     <button class="nav-btn" onclick="showLang()">
       <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
       <div class="nav-label" data-i18n="navLang">Nyelv</div>
@@ -801,12 +851,12 @@ html, body {
       <div class="modal-title" id="jrn-modal-title">➕ Új szállítás</div>
       <div class="modal-body">
         <div class="form-field">
-          <label class="form-label">🚗 Rendszám</label>
-          <input class="form-input" id="jf-rendszam" placeholder="ABC-123">
-        </div>
-        <div class="form-field">
           <label class="form-label">🏢 Szállító</label>
           <input class="form-input" id="jf-szallito" placeholder="Cég neve">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🚗 Rendszám</label>
+          <input class="form-input" id="jf-rendszam" placeholder="ABC-123">
         </div>
         <div class="form-field">
           <label class="form-label">👤 Sofőr neve</label>
@@ -835,6 +885,14 @@ html, body {
         <div class="form-field">
           <label class="form-label">🛣 Útvonal</label>
           <input class="form-input" id="jf-route" placeholder="Budapest → Debrecen">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🗺 Google Maps kamion útvonal link</label>
+          <input class="form-input" id="jf-gmaps" placeholder="https://maps.google.com/…">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🔢 Megtett km</label>
+          <input class="form-input" id="jf-megtett" placeholder="248" type="text" inputmode="numeric">
         </div>
         <div class="form-field">
           <label class="form-label">📝 Megjegyzés</label>
@@ -886,15 +944,16 @@ html, body {
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 const S = {
-  screen:  'home',
-  lang:    localStorage.getItem('cl_lang') || 'hu',
-  loc:     null,        // {lat, lng}
-  results: [],
-  category: null,
-  clusters: [],
-  journal: [],
-  chatId:  null,
-  notes:   localStorage.getItem('cl_notes') || '',
+  screen:    'home',
+  lang:      localStorage.getItem('cl_lang') || 'hu',
+  loc:       null,
+  results:   [],
+  category:  null,
+  clusters:  [],
+  journal:   [],
+  shortcuts: JSON.parse(localStorage.getItem('cl_shortcuts') || '[]'),
+  chatId:    null,
+  notes:     localStorage.getItem('cl_notes') || '',
   checklist: JSON.parse(localStorage.getItem('cl_checks') || 'null'),
   editId:    null,
   editField: null,
@@ -949,7 +1008,7 @@ const L = {
     bestStopSub: 'Üzemanyag + Étel + Parkoló',
     coordLabel: '📍 Keresési pont (opcionális — üresen hagyva GPS-t használ)',
     sectCat: 'Kategóriák',
-    navHome: 'Főoldal', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Napló', navLang: 'Nyelv',
+    navHome: 'Főoldal', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Napló', navShortcuts: 'Shortcuts', navLang: 'Nyelv',
     checkHome: '🏠 Indulás előtt — Otthon',
     checkTruck: '🚛 Indulás előtt — Kamiontól',
     checks: [
@@ -994,7 +1053,7 @@ const L = {
     bestStopSub: 'Combustibil + Mâncare + Parcare',
     coordLabel: '📍 Punct de căutare (opțional — gol = folosește GPS)',
     sectCat: 'Categorii',
-    navHome: 'Acasă', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Jurnal', navLang: 'Limbă',
+    navHome: 'Acasă', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Jurnal', navShortcuts: 'Shortcuts', navLang: 'Limbă',
     checkHome: '🏠 Înainte de plecare — Acasă',
     checkTruck: '🚛 Înainte de plecare — La camion',
     checks: [
@@ -1039,7 +1098,7 @@ const L = {
     bestStopSub: 'Fuel + Food + Parking',
     coordLabel: '📍 Search point (optional — empty = use GPS)',
     sectCat: 'Categories',
-    navHome: 'Home', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Journal', navLang: 'Language',
+    navHome: 'Home', navBestStop: 'Best Stop', navChecklist: 'Checklist', navJournal: 'Journal', navShortcuts: 'Shortcuts', navLang: 'Language',
     checkHome: '🏠 Before departure — Home',
     checkTruck: '🚛 Before departure — At truck',
     checks: [
@@ -1141,7 +1200,7 @@ function navTo(screen) {
   action.onclick = null;
   action.textContent = '';
 
-  const titles = { home: t('home'), results: t('results'), beststop: t('beststop'), checklist: t('checklist'), journal: t('journal') };
+  const titles = { home: t('home'), results: t('results'), beststop: t('beststop'), checklist: t('checklist'), journal: t('journal'), shortcuts: '⭐ Shortcuts' };
   title.textContent = titles[screen] || screen;
 
   if (screen === 'journal' && S.chatId) {
@@ -1149,8 +1208,14 @@ function navTo(screen) {
     action.textContent = '➕';
     action.onclick = openJrnModal;
   }
+  if (screen === 'shortcuts') {
+    action.classList.remove('hidden');
+    action.textContent = '➕';
+    action.onclick = () => showModal('sc-modal');
+  }
   if (screen === 'checklist') renderChecklist();
   if (screen === 'journal') loadJournal();
+  if (screen === 'shortcuts') renderShortcuts();
   if (screen === 'beststop' && !S.clusters.length) doBestStop();
 }
 
@@ -1447,23 +1512,25 @@ function renderJournal(entries) {
       <div class="journal-card-header">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="journal-card-id">#${e.id}</span>
-          <span style="font-size:15px;font-weight:700;color:var(--text)">🚗 ${e.rendszam || '-'}</span>
+          ${e.szallito && e.szallito !== '-' ? `<span style="font-size:14px;font-weight:700;color:var(--accent)">🏢 ${e.szallito}</span>` : ''}
         </div>
       </div>
       <div class="journal-card-meta">
+        ${e.rendszam   && e.rendszam   !== '-' ? `<span class="journal-tag">🚗 ${e.rendszam}</span>` : ''}
         ${e.sofor_neve && e.sofor_neve !== '-' ? `<span class="journal-tag">👤 ${e.sofor_neve}</span>` : ''}
-        ${e.szallito   && e.szallito   !== '-' ? `<span class="journal-tag">🏢 ${e.szallito}</span>` : ''}
         ${e.kisert_rsz && e.kisert_rsz !== '-' ? `<span class="journal-tag">🚛 ${e.kisert_rsz}</span>` : ''}
       </div>
       <div class="journal-card-meta" style="margin-top:4px">
-        ${e.datum_ind  && e.datum_ind  !== '-' ? `<span class="journal-tag" style="background:rgba(245,158,11,0.1);border-color:var(--accent-dim)">↗ ${e.datum_ind}</span>` : ''}
-        ${e.datum_erk  && e.datum_erk  !== '-' ? `<span class="journal-tag" style="background:rgba(34,197,94,0.1);border-color:#166534">↙ ${e.datum_erk}</span>` : ''}
+        ${e.datum_ind && e.datum_ind !== '-' ? `<span class="journal-tag" style="background:rgba(245,158,11,0.1);border-color:var(--accent-dim)">↗ ${e.datum_ind}</span>` : ''}
+        ${e.datum_erk && e.datum_erk !== '-' ? `<span class="journal-tag" style="background:rgba(34,197,94,0.1);border-color:#166534">↙ ${e.datum_erk}</span>` : ''}
       </div>
       <div class="journal-card-meta" style="margin-top:4px">
         ${e.index_ind  && e.index_ind  !== '-' ? `<span class="journal-tag">↗ ${e.index_ind} km</span>` : ''}
         ${e.index_erk  && e.index_erk  !== '-' ? `<span class="journal-tag">↙ ${e.index_erk} km</span>` : ''}
+        ${e.megtett_km && e.megtett_km !== '-' ? `<span class="journal-tag" style="background:rgba(99,102,241,0.1);border-color:#4338ca">🔢 ${e.megtett_km} km</span>` : ''}
         ${e.route      && e.route      !== '-' ? `<span class="journal-tag">🛣 ${e.route}</span>` : ''}
       </div>
+      ${e.gmaps_route ? `<a href="${e.gmaps_route}" target="_blank" class="btn btn-ghost" style="margin-top:8px;font-size:12px;padding:6px 10px;display:inline-flex">🗺 Kamion útvonal megnyitása</a>` : ''}
       ${e.notes ? `<div class="journal-tag-note">📝 ${e.notes}</div>` : ''}
       <div class="journal-card-actions">
         <button class="journal-action-btn" onclick="openEditJrn(${e.id})">✏️ Szerkeszt</button>
@@ -1476,34 +1543,125 @@ function filterJournal() {
   const q = (document.getElementById('jrn-search')?.value || '').toLowerCase().trim();
   if (!q) { renderJournal(S.journal); return; }
   const filtered = S.journal.filter(e =>
-    [e.rendszam, e.szallito, e.sofor_neve, e.kisert_rsz, e.route, e.datum_ind, e.datum_erk, e.notes]
+    [e.szallito, e.rendszam, e.sofor_neve, e.kisert_rsz, e.route, e.datum_ind, e.datum_erk, e.gmaps_route, e.notes]
       .some(v => v && v.toLowerCase().includes(q))
   );
   renderJournal(filtered);
 }
 
+// ── CSV Export ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!S.journal.length) { showToast('Nincs exportálható bejegyzés', 'error'); return; }
+  const cols = ['ID','Szállító','Rendszám','Sofőr','Kísért RSZ','Indulás dátum','Érkezés dátum','Index Km (ind.)','Index Km (erk.)','Megtett Km','Útvonal','Google Maps','Megjegyzés'];
+  const esc = v => `"${(v||'').replace(/"/g,'""')}"`;
+  const rows = S.journal.map(e => [
+    e.id, e.szallito, e.rendszam, e.sofor_neve, e.kisert_rsz,
+    e.datum_ind, e.datum_erk, e.index_ind, e.index_erk,
+    e.megtett_km, e.route, e.gmaps_route, e.notes
+  ].map(esc).join(','));
+  const csv = '﻿' + [cols.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `naplo_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ CSV letöltve', 'success');
+}
+
+// ── Shortcuts ─────────────────────────────────────────────────────────────────
+function _saveShortcuts() {
+  localStorage.setItem('cl_shortcuts', JSON.stringify(S.shortcuts));
+}
+
+function saveShortcut() {
+  const name = document.getElementById('sc-name').value.trim();
+  const raw  = document.getElementById('sc-url').value.trim();
+  if (!name || !raw) { showToast('Név és link szükséges', 'error'); return; }
+
+  // Accept raw coordinates or full URL
+  let url = raw;
+  if (!raw.startsWith('http')) {
+    const parts = raw.split(/[,;\s]+/).map(Number);
+    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      url = `https://maps.google.com/?q=${parts[0]},${parts[1]}`;
+    }
+  }
+
+  const id = Date.now();
+  S.shortcuts.push({ id, name, url });
+  _saveShortcuts();
+  closeScModal();
+  renderShortcuts();
+  showToast('⭐ Shortcut mentve', 'success');
+}
+
+function deleteShortcut(id) {
+  S.shortcuts = S.shortcuts.filter(s => s.id !== id);
+  _saveShortcuts();
+  renderShortcuts();
+}
+
+function renderShortcuts() {
+  const list = document.getElementById('shortcuts-list');
+  if (!list) return;
+  const q = (document.getElementById('sc-search')?.value || '').toLowerCase().trim();
+  const items = q ? S.shortcuts.filter(s => s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)) : S.shortcuts;
+
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">⭐</div>
+      <div class="empty-state-title">${q ? 'Nincs találat' : 'Még nincsenek shortcutok'}</div>
+      <div class="empty-state-text">${q ? '' : 'Adj hozzá a ➕ gombbal.'}</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = items.map(s => `
+    <div class="shortcut-card">
+      <div style="flex:1;min-width:0">
+        <div class="shortcut-card-name">${s.name}</div>
+        <div class="shortcut-card-sub">${s.url}</div>
+      </div>
+      <div class="shortcut-actions">
+        <button class="btn btn-primary" style="padding:8px 12px;font-size:13px" onclick="openMaps('${s.url}')">🗺</button>
+        <button class="shortcut-del-btn" onclick="deleteShortcut(${s.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function closeScModal(ev) {
+  if (ev && ev.target !== document.getElementById('sc-modal')) return;
+  document.getElementById('sc-name').value = '';
+  document.getElementById('sc-url').value  = '';
+  hideModal('sc-modal');
+}
+
 // ── Journal Modal ─────────────────────────────────────────────────────────────
 function openJrnModal() {
-  ['jf-rendszam','jf-szallito','jf-sofor','jf-kisert','jf-datum-ind','jf-datum-erk','jf-ind','jf-erk','jf-route','jf-notes']
-    .forEach(id => { document.getElementById(id).value = ''; });
+  ['jf-szallito','jf-rendszam','jf-sofor','jf-kisert','jf-datum-ind','jf-datum-erk','jf-ind','jf-erk','jf-route','jf-gmaps','jf-megtett','jf-notes']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  document.getElementById('jrn-modal-title').textContent = '➕ Új szállítás';
   showModal('jrn-modal');
 }
 
 async function saveJrnEntry() {
-  const rendszam = document.getElementById('jf-rendszam').value.trim();
-  if (!rendszam) { document.getElementById('jf-rendszam').focus(); return; }
+  const szallito = document.getElementById('jf-szallito').value.trim();
+  if (!szallito) { document.getElementById('jf-szallito').focus(); return; }
   try {
     await api(`/api/journal/${S.chatId}`, 'POST', {
-      rendszam,
-      szallito:   document.getElementById('jf-szallito').value.trim()   || '-',
-      sofor_neve: document.getElementById('jf-sofor').value.trim()      || '-',
-      kisert_rsz: document.getElementById('jf-kisert').value.trim()     || '-',
-      datum_ind:  document.getElementById('jf-datum-ind').value.trim()  || '-',
-      datum_erk:  document.getElementById('jf-datum-erk').value.trim()  || '-',
-      index_ind:  document.getElementById('jf-ind').value.trim()        || '-',
-      index_erk:  document.getElementById('jf-erk').value.trim()        || '-',
-      route:      document.getElementById('jf-route').value.trim()      || '-',
-      notes:      document.getElementById('jf-notes').value.trim()      || '',
+      szallito,
+      rendszam:    document.getElementById('jf-rendszam').value.trim()   || '-',
+      sofor_neve:  document.getElementById('jf-sofor').value.trim()      || '-',
+      kisert_rsz:  document.getElementById('jf-kisert').value.trim()     || '-',
+      datum_ind:   document.getElementById('jf-datum-ind').value.trim()  || '-',
+      datum_erk:   document.getElementById('jf-datum-erk').value.trim()  || '-',
+      index_ind:   document.getElementById('jf-ind').value.trim()        || '-',
+      index_erk:   document.getElementById('jf-erk').value.trim()        || '-',
+      route:       document.getElementById('jf-route').value.trim()      || '-',
+      gmaps_route: document.getElementById('jf-gmaps').value.trim()      || '',
+      megtett_km:  document.getElementById('jf-megtett').value.trim()    || '-',
+      notes:       document.getElementById('jf-notes').value.trim()      || '',
     });
     closeJrnModal();
     showToast(t('entrySaved'), 'success');
@@ -1520,16 +1678,18 @@ function closeJrnModal(ev) {
 
 // ── Journal Edit ──────────────────────────────────────────────────────────────
 const EDIT_FIELDS = {
-  rendszam:   { label: '🚗 Rendszám',                    placeholder: 'ABC-123' },
-  szallito:   { label: '🏢 Szállító',                    placeholder: 'Cég neve' },
-  sofor_neve: { label: '👤 Sofőr neve',                  placeholder: 'Kovács János' },
-  kisert_rsz: { label: '🚛 Kísért jármű rendszáma',      placeholder: 'XY-1234' },
-  datum_ind:  { label: '📅 Dátum / Óra — Induláskor',   placeholder: '2025.06.12 — 08:30' },
-  datum_erk:  { label: '📅 Dátum / Óra — Érkezéskor',   placeholder: '2025.06.12 — 14:15' },
-  index_ind:  { label: '🔢 Index Km — Induláskor',       placeholder: '124500' },
-  index_erk:  { label: '🔢 Index Km — Érkezéskor',       placeholder: '124748' },
-  route:      { label: '🛣 Útvonal',                     placeholder: 'Budapest → Debrecen' },
-  notes:      { label: '📝 Megjegyzés',                  placeholder: '' },
+  szallito:    { label: '🏢 Szállító',                    placeholder: 'Cég neve' },
+  rendszam:    { label: '🚗 Rendszám',                    placeholder: 'ABC-123' },
+  sofor_neve:  { label: '👤 Sofőr neve',                  placeholder: 'Kovács János' },
+  kisert_rsz:  { label: '🚛 Kísért jármű rendszáma',      placeholder: 'XY-1234' },
+  datum_ind:   { label: '📅 Dátum / Óra — Induláskor',   placeholder: '2025.06.12 — 08:30' },
+  datum_erk:   { label: '📅 Dátum / Óra — Érkezéskor',   placeholder: '2025.06.12 — 14:15' },
+  index_ind:   { label: '🔢 Index Km — Induláskor',       placeholder: '124500' },
+  index_erk:   { label: '🔢 Index Km — Érkezéskor',       placeholder: '124748' },
+  megtett_km:  { label: '🔢 Megtett km',                  placeholder: '248' },
+  route:       { label: '🛣 Útvonal',                     placeholder: 'Budapest → Debrecen' },
+  gmaps_route: { label: '🗺 Google Maps kamion útvonal',  placeholder: 'https://maps.google.com/…' },
+  notes:       { label: '📝 Megjegyzés',                  placeholder: '' },
 };
 
 function openEditJrn(id) {
