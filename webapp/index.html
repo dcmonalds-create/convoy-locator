@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='13';
+  var V='14';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -1797,28 +1797,36 @@ async function doExport(action) {
   const entries = _filterEntries(_expState.period, _expState.month);
   if (!entries.length) { showToast('Nincs bejegyzés ebben az időszakban', 'error'); return; }
 
-  const csv      = _buildCSV(entries);
   const filename = _expFilename(_expState.period, _expState.month);
   hideModal('export-modal');
 
-  if (action === 'download') {
+  // iOS/Android Telegram Mini App cannot download blobs to Files —
+  // the browser opens them in an unreadable in-app viewer.
+  // When inside Telegram WebApp, always send via server API to the chat.
+  const isInTelegram = !!(window.Telegram?.WebApp?.initData);
+
+  if (action === 'download' && !isInTelegram) {
+    const csv  = _buildCSV(entries);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
     showToast(`✅ CSV letöltve (${entries.length} sor)`, 'success');
-  } else {
-    try {
-      const r = await api(`/api/journal/${S.chatId}/export`, 'POST', {
-        period: _expState.period,
-        month:  _expState.month,
-        filename,
-      });
-      showToast(`📤 Elküldve Telegramra (${r.count} fuvar · ${r.total_km} km)`, 'success');
-    } catch(e) {
-      showToast('❌ Küldés sikertelen: ' + e.message, 'error');
-    }
+    return;
+  }
+
+  // Telegram send (or download redirected to chat on mobile)
+  try {
+    const r = await api(`/api/journal/${S.chatId}/export`, 'POST', {
+      period: _expState.period,
+      month:  _expState.month,
+      filename,
+    });
+    const label = action === 'download' ? '📩 Chatbe küldve' : '📤 Elküldve';
+    showToast(`${label} · ${r.count} fuvar · ${r.total_km} km`, 'success');
+  } catch(e) {
+    showToast('❌ Küldés sikertelen: ' + e.message, 'error');
   }
 }
 
