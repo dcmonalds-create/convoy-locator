@@ -117,30 +117,28 @@ STRINGS = {
         "journal_add_btn":    "➕ Új szállítás",
         "journal_list_btn":   "📄 Utolsó 5 bejegyzés",
         "journal_report_btn": "📊 Havi jelentés",
-        "journal_ask_route":  "🛣 Útvonal (honnan → hova):",
-        "journal_ask_ast":    "📄 AST szám (vagy - ha nincs):",
-        "journal_ask_km":     "🔢 Megtett kilométerek (az AST-ból, pl. 748):",
-        "journal_ask_dims":   "📐 Méretek és tömeg (pl. 28x2.8x4.3m, 110t):",
-        "journal_ask_notes":  "📝 Megjegyzések (vagy - ha nincs):",
-        "journal_saved":      "✅ Mentve! #{id} | {date}\n🛣 {route}",
-        "journal_empty":      "Még nincsenek bejegyzések.",
-        "journal_ask_month":  "📊 Melyik hónap? Írj: `HH.ÉÉÉÉ` (pl. `04.2026`)",
-        "journal_no_data":    "Nincs adat erre a hónapra.",
-        "journal_del_btn":    "🗑 Törlés",
-        "journal_del_prompt": "Melyik bejegyzést törlöd? (írj #számot, pl. `#3`)",
-        "journal_del_ok":     "🗑 Törölve: #{id}",
-        "journal_del_fail":   "❌ Nem található: #{id}",
-        "journal_edit_btn":   "✏️ Szerkesztés",
-        "journal_edit_prompt":"Melyik bejegyzést szerkeszted? (írj #számot, pl. `#3`)",
-        "journal_edit_show":  "✏️ *#{id}* | {date}\n🛣 {route}\n📄 {ast}\n🔢 {km} km\n📐 {dims}\n📝 {notes}\n\nMelyik mezőt módosítod?",
-        "journal_edit_fail":  "❌ Nem található: #{id}",
-        "journal_edit_ask":   "✏️ Új érték ({field}):",
-        "journal_edit_ok":    "✅ Frissítve: #{id}",
-        "journal_field_route":"🛣 Útvonal",
-        "journal_field_ast":  "📄 AST szám",
-        "journal_field_km":   "🔢 Km",
-        "journal_field_dims": "📐 Méretek",
-        "journal_field_notes":"📝 Megjegyzés",
+        "journal_ask_route":    "🛣 Útvonal (honnan → hova):",
+        "journal_ask_szallito": "🏢 Szállító neve:",
+        "journal_ask_rendszam": "🚛 Kamion rendszáma:",
+        "journal_ask_notes":    "📝 Megjegyzések (vagy - ha nincs):",
+        "journal_saved":        "✅ Mentve! #{id} | {date}\n🏢 {szallito}  🚛 {rendszam}\n🛣 {route}",
+        "journal_empty":        "Még nincsenek bejegyzések.",
+        "journal_ask_month":    "📊 Melyik hónap? Írj: `HH.ÉÉÉÉ` (pl. `04.2026`)",
+        "journal_no_data":      "Nincs adat erre a hónapra.",
+        "journal_del_btn":      "🗑 Törlés",
+        "journal_del_prompt":   "Melyik bejegyzést törlöd? (írj #számot, pl. `#3`)",
+        "journal_del_ok":       "🗑 Törölve: #{id}",
+        "journal_del_fail":     "❌ Nem található: #{id}",
+        "journal_edit_btn":     "✏️ Szerkesztés",
+        "journal_edit_prompt":  "Melyik bejegyzést szerkeszted? (írj #számot, pl. `#3`)",
+        "journal_edit_show":    "✏️ *#{id}* | {date}\n🏢 {szallito}  🚛 {rendszam}\n🛣 {route}\n📝 {notes}\n\nMelyik mezőt módosítod?",
+        "journal_edit_fail":    "❌ Nem található: #{id}",
+        "journal_edit_ask":     "✏️ Új érték ({field}):",
+        "journal_edit_ok":      "✅ Frissítve: #{id}",
+        "journal_field_szallito":"🏢 Szállító",
+        "journal_field_rendszam":"🚛 Rendszám",
+        "journal_field_route":  "🛣 Útvonal",
+        "journal_field_notes":  "📝 Megjegyzés",
         "categories": {
             "fastfood":    "🍔 Gyorsétterem",
             "mancare":     "🍽 Étel",
@@ -220,30 +218,28 @@ STRINGS = {
         "journal_add_btn":    "➕ Transport nou",
         "journal_list_btn":   "📄 Ultimele 5 intrari",
         "journal_report_btn": "📊 Raport lunar",
-        "journal_ask_route":  "🛣 Traseu (de unde → unde):",
-        "journal_ask_ast":    "📄 Nr. AST (sau - daca nu ai):",
-        "journal_ask_km":     "🔢 Km parcursi (din AST, ex: 748):",
-        "journal_ask_dims":   "📐 Dimensiuni si masa (ex: 28x2.8x4.3m, 110t):",
-        "journal_ask_notes":  "📝 Observatii (sau - daca nu ai):",
-        "journal_saved":      "✅ Salvat! #{id} | {date}\n🛣 {route}",
-        "journal_empty":      "Nu exista inregistrari inca.",
-        "journal_ask_month":  "📊 Ce luna? Scrie: `LL.AAAA` (ex: `04.2026`)",
-        "journal_no_data":    "Nu exista date pentru aceasta luna.",
-        "journal_del_btn":    "🗑 Sterge intrare",
-        "journal_del_prompt": "Ce intrare stergi? (scrie #numar, ex: `#3`)",
-        "journal_del_ok":     "🗑 Sters: #{id}",
-        "journal_del_fail":   "❌ Nu gasit: #{id}",
-        "journal_edit_btn":   "✏️ Editare",
-        "journal_edit_prompt":"Ce intrare editezi? (scrie #numar, ex: `#3`)",
-        "journal_edit_show":  "✏️ *#{id}* | {date}\n🛣 {route}\n📄 {ast}\n🔢 {km} km\n📐 {dims}\n📝 {notes}\n\nCe camp modifici?",
-        "journal_edit_fail":  "❌ Nu gasit: #{id}",
-        "journal_edit_ask":   "✏️ Valoare noua ({field}):",
-        "journal_edit_ok":    "✅ Actualizat: #{id}",
-        "journal_field_route":"🛣 Traseu",
-        "journal_field_ast":  "📄 Nr. AST",
-        "journal_field_km":   "🔢 Km",
-        "journal_field_dims": "📐 Dimensiuni",
-        "journal_field_notes":"📝 Observatii",
+        "journal_ask_route":    "🛣 Traseu (de unde → unde):",
+        "journal_ask_szallito": "🏢 Numele transportatorului:",
+        "journal_ask_rendszam": "🚛 Nr. inmatriculare camion:",
+        "journal_ask_notes":    "📝 Observatii (sau - daca nu ai):",
+        "journal_saved":        "✅ Salvat! #{id} | {date}\n🏢 {szallito}  🚛 {rendszam}\n🛣 {route}",
+        "journal_empty":        "Nu exista inregistrari inca.",
+        "journal_ask_month":    "📊 Ce luna? Scrie: `LL.AAAA` (ex: `04.2026`)",
+        "journal_no_data":      "Nu exista date pentru aceasta luna.",
+        "journal_del_btn":      "🗑 Sterge intrare",
+        "journal_del_prompt":   "Ce intrare stergi? (scrie #numar, ex: `#3`)",
+        "journal_del_ok":       "🗑 Sters: #{id}",
+        "journal_del_fail":     "❌ Nu gasit: #{id}",
+        "journal_edit_btn":     "✏️ Editare",
+        "journal_edit_prompt":  "Ce intrare editezi? (scrie #numar, ex: `#3`)",
+        "journal_edit_show":    "✏️ *#{id}* | {date}\n🏢 {szallito}  🚛 {rendszam}\n🛣 {route}\n📝 {notes}\n\nCe camp modifici?",
+        "journal_edit_fail":    "❌ Nu gasit: #{id}",
+        "journal_edit_ask":     "✏️ Valoare noua ({field}):",
+        "journal_edit_ok":      "✅ Actualizat: #{id}",
+        "journal_field_szallito":"🏢 Transportator",
+        "journal_field_rendszam":"🚛 Nr. inmatriculare",
+        "journal_field_route":  "🛣 Traseu",
+        "journal_field_notes":  "📝 Observatii",
         "categories": {
             "fastfood":    "🍔 Fast Food",
             "mancare":     "🍽 Mancare",
@@ -406,14 +402,13 @@ def _journal_menu_keyboard(ctx: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMark
     ])
 
 
-def _journal_edit_field_keyboard(ctx: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
+def _journal_edit_field_keyboard(ctx: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:  # noqa: E501
     """Inline gombok: melyik mezőt szerkessze."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(_t(ctx, "journal_field_route"), callback_data="jrn_ef_route"),
-         InlineKeyboardButton(_t(ctx, "journal_field_ast"),   callback_data="jrn_ef_ast")],
-        [InlineKeyboardButton(_t(ctx, "journal_field_km"),    callback_data="jrn_ef_km"),
-         InlineKeyboardButton(_t(ctx, "journal_field_dims"),  callback_data="jrn_ef_dims")],
-        [InlineKeyboardButton(_t(ctx, "journal_field_notes"), callback_data="jrn_ef_notes")],
+        [InlineKeyboardButton(_t(ctx, "journal_field_szallito"), callback_data="jrn_ef_szallito"),
+         InlineKeyboardButton(_t(ctx, "journal_field_rendszam"), callback_data="jrn_ef_rendszam")],
+        [InlineKeyboardButton(_t(ctx, "journal_field_route"),    callback_data="jrn_ef_route"),
+         InlineKeyboardButton(_t(ctx, "journal_field_notes"),    callback_data="jrn_ef_notes")],
     ])
 
 
@@ -664,13 +659,12 @@ async def on_journal_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return
     lines = []
     for e in reversed(entries):
-        km_part = f"  🔢 {e['km']} km" if e.get('km') and e['km'] != "-" else ""
+        km_part = f"  🔢 {e['megtett_km']} km" if e.get("megtett_km") and e["megtett_km"] != "-" else ""
         lines.append(
-            f"*#{e['id']}* | {e['date']}\n"
-            f"🛣 {e['route']}\n"
-            f"📄 {e['ast']}{km_part}\n"
-            f"📐 {e['dims']}\n"
-            + (f"📝 {e['notes']}\n" if e['notes'] not in ("-", "") else "")
+            f"*#{e['id']}* | {e.get('date', '?')}\n"
+            f"🏢 {e.get('szallito', '-')}  🚛 {e.get('rendszam', '-')}\n"
+            f"🛣 {e.get('route', '-')}{km_part}\n"
+            + (f"📝 {e['notes']}\n" if e.get("notes") not in ("-", "", None) else "")
         )
     await q.edit_message_text(
         "\n".join(lines),
@@ -707,7 +701,7 @@ async def on_journal_edit_field(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     """Melyik mezőt szerkesszük — inline gomb callback."""
     q = update.callback_query
     await q.answer()
-    field = q.data.replace("jrn_ef_", "")   # route / ast / km / dims / notes
+    field = q.data.replace("jrn_ef_", "")   # szallito / rendszam / route / notes
     ctx.user_data["jrn_edit_field"] = field
     ctx.user_data["jrn_state"] = "edit_value"
     field_label = _t(ctx, f"journal_field_{field}")
@@ -788,7 +782,7 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Flux jurnal — pasi secventiali
     jrn = ctx.user_data.get("jrn_state")
-    if jrn in ("route", "ast", "km", "dims", "notes", "report_month", "del_id", "edit_id", "edit_value"):
+    if jrn in ("route", "szallito", "rendszam", "notes", "report_month", "del_id", "edit_id", "edit_value"):
         await _handle_journal_input(update, ctx, text, jrn)
         return
 
@@ -823,36 +817,34 @@ async def _handle_journal_input(
 
     if state == "route":
         d["jrn_route"] = text
-        d["jrn_state"] = "ast"
-        await update.message.reply_text(_t(ctx, "journal_ask_ast"))
+        d["jrn_state"] = "szallito"
+        await update.message.reply_text(_t(ctx, "journal_ask_szallito"))
 
-    elif state == "ast":
-        d["jrn_ast"] = text
-        d["jrn_state"] = "km"
-        await update.message.reply_text(_t(ctx, "journal_ask_km"))
+    elif state == "szallito":
+        d["jrn_szallito"] = text
+        d["jrn_state"] = "rendszam"
+        await update.message.reply_text(_t(ctx, "journal_ask_rendszam"))
 
-    elif state == "km":
-        d["jrn_km"] = text
-        d["jrn_state"] = "dims"
-        await update.message.reply_text(_t(ctx, "journal_ask_dims"))
-
-    elif state == "dims":
-        d["jrn_dims"] = text
+    elif state == "rendszam":
+        d["jrn_rendszam"] = text
         d["jrn_state"] = "notes"
         await update.message.reply_text(_t(ctx, "journal_ask_notes"))
 
     elif state == "notes":
         entry = journal.add_entry(
             chat_id=update.effective_chat.id,
-            route=d.pop("jrn_route", ""),
-            ast=d.pop("jrn_ast", "-"),
-            km=d.pop("jrn_km", "-"),
-            dims=d.pop("jrn_dims", "-"),
+            route=d.pop("jrn_route", "-"),
+            szallito=d.pop("jrn_szallito", "-"),
+            rendszam=d.pop("jrn_rendszam", "-"),
             notes=text if text != "-" else "",
         )
         d["jrn_state"] = None
         await update.message.reply_text(
-            _t(ctx, "journal_saved").format(id=entry["id"], date=entry["date"], route=entry["route"]),
+            _t(ctx, "journal_saved").format(
+                id=entry["id"], date=entry["date"],
+                szallito=entry["szallito"], rendszam=entry["rendszam"],
+                route=entry["route"],
+            ),
             parse_mode="Markdown",
             reply_markup=_journal_menu_keyboard(ctx),
         )
@@ -916,9 +908,11 @@ async def _handle_journal_input(
         d["jrn_state"] = None   # mező-választó inline gomb veszi át
         await update.message.reply_text(
             _t(ctx, "journal_edit_show").format(
-                id=entry["id"], date=entry["date"],
-                route=entry["route"], ast=entry["ast"],
-                km=entry.get("km", "-"), dims=entry["dims"],
+                id=entry["id"],
+                date=entry.get("date", "?"),
+                szallito=entry.get("szallito", "-"),
+                rendszam=entry.get("rendszam", "-"),
+                route=entry.get("route", "-"),
                 notes=entry.get("notes", "-") or "-",
             ),
             parse_mode="Markdown",

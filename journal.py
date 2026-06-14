@@ -4,6 +4,7 @@ Fájl: {STORAGE_DIR}/journal_{chat_id}.json
 """
 from __future__ import annotations
 
+import datetime
 import json
 import os
 from pathlib import Path
@@ -50,6 +51,7 @@ def add_entry(
     entries = load(chat_id)
     entry = {
         "id":          (entries[-1]["id"] + 1) if entries else 1,
+        "date":        datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "szallito":    szallito,
         "rendszam":    rendszam,
         "sofor_neve":  sofor_neve,
@@ -96,5 +98,44 @@ def delete_entry(chat_id: int, entry_id: int) -> bool:
     return True
 
 
+def get_entry(chat_id: int, entry_id: int) -> dict | None:
+    for e in load(chat_id):
+        if e["id"] == entry_id:
+            return e
+    return None
+
+
 def last_entries(chat_id: int, n: int = 5) -> list[dict]:
     return load(chat_id)[-n:]
+
+
+def monthly_report(chat_id: int, month: int, year: int) -> str:
+    entries = [e for e in load(chat_id) if _in_month(e, month, year)]
+    if not entries:
+        return ""
+    lines = []
+    for e in entries:
+        szallito = e.get("szallito", "-")
+        rendszam = e.get("rendszam", "-")
+        route    = e.get("route", "-")
+        notes    = e.get("notes", "")
+        km       = e.get("megtett_km", "-")
+        line = (
+            f"*#{e['id']}* | {e.get('date', '?')}\n"
+            f"🏢 {szallito}  🚛 {rendszam}\n"
+            f"🛣 {route}"
+        )
+        if km and km != "-":
+            line += f"  🔢 {km} km"
+        if notes and notes not in ("-", ""):
+            line += f"\n📝 {notes}"
+        lines.append(line)
+    return "\n\n".join(lines)
+
+
+def _in_month(entry: dict, month: int, year: int) -> bool:
+    try:
+        dt = datetime.datetime.strptime(entry.get("date", "")[:7], "%Y-%m")
+        return dt.month == month and dt.year == year
+    except Exception:
+        return False
