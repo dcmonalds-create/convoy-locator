@@ -324,31 +324,44 @@ class JournalExportReq(BaseModel):
     filename: str = ""
 
 
+def _parse_entry_date(e: dict):
+    """Parse datum_ind (DD.MM.YYYY - HH:MM) or date (YYYY-MM-DD) → date object or None."""
+    import re as _re
+    import datetime as _dt
+    raw = e.get("datum_ind") or e.get("date", "")
+    if not raw or raw == "-":
+        return None
+    # DD.MM.YYYY or DD/MM/YYYY
+    m = _re.match(r"^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})", raw)
+    if m:
+        try:
+            return _dt.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except Exception:
+            pass
+    # YYYY-MM-DD (ISO fallback)
+    try:
+        return _dt.date.fromisoformat(raw[:10])
+    except Exception:
+        return None
+
+
 def _export_filter(entries: list, period: str, month: str) -> list:
     import datetime as _dt
     if period == "all":
         return entries
     now = _dt.date.today()
     if period == "week":
-        # ISO hét: hétfőtől vasárnapig
         mon = now - _dt.timedelta(days=now.weekday())
         sun = mon + _dt.timedelta(days=6)
-        def in_week(e):
-            raw = e.get("datum_ind") or e.get("date", "")
-            if not raw or raw == "-":
-                return False
-            try:
-                d = _dt.date.fromisoformat(raw[:10])
-                return mon <= d <= sun
-            except Exception:
-                return False
-        return [e for e in entries if in_week(e)]
+        return [e for e in entries if (d := _parse_entry_date(e)) and mon <= d <= sun]
     if period == "month":
         pfx = month or now.strftime("%Y-%m")
-        def in_month(e):
-            raw = e.get("datum_ind") or e.get("date", "")
-            return bool(raw and raw[:7] == pfx)
-        return [e for e in entries if in_month(e)]
+        def _ym(e):
+            d = _parse_entry_date(e)
+            if not d:
+                return None
+            return f"{d.year}-{d.month:02d}"
+        return [e for e in entries if _ym(e) == pfx]
     return entries
 
 
@@ -365,8 +378,11 @@ def _build_csv(entries: list, period: str, month: str) -> str:
 
     rows = []
     for e in entries:
+        datum = e.get("datum_ind") or e.get("date", "")
+        if datum == "-":
+            datum = e.get("date", "")
         rows.append(",".join(esc(x) for x in [
-            e.get("id", ""), e.get("date", ""), e.get("szallito", ""),
+            e.get("id", ""), datum, e.get("szallito", ""),
             e.get("rendszam", ""), e.get("route", ""),
             e.get("megtett_km", ""), e.get("notes", ""),
         ]))
