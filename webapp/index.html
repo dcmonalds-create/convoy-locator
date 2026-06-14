@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='10';
+  var V='11';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -834,6 +834,8 @@ html, body {
       <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, szállító, sofőr…" oninput="filterJournal()" style="flex:1">
       <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="backupJournal()" title="Backup a Telegram chatbe">💾</button>
       <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="openExportModal()" title="Export">📊</button>
+      <button class="btn btn-ghost" style="flex-shrink:0;padding:8px 12px;font-size:18px" onclick="document.getElementById('jrn-restore-input').click()" title="Visszaállítás JSON-ból">📥</button>
+      <input type="file" id="jrn-restore-input" accept=".json" style="display:none" onchange="restoreFromFile(this)">
     </div>
     <div class="journal-list" id="journal-list"></div>
   </div>
@@ -1805,6 +1807,23 @@ async function doExport(action) {
     } catch(e) {
       showToast('❌ Küldés sikertelen: ' + e.message, 'error');
     }
+  }
+}
+
+async function restoreFromFile(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const entries = JSON.parse(text);
+    if (!Array.isArray(entries)) throw new Error('Érvénytelen formátum');
+    if (!confirm(`${entries.length} bejegyzést állítsak vissza?`)) return;
+    const r = await api(`/api/journal/${S.chatId}/restore`, 'POST', { entries });
+    showToast(`✅ Visszaállítva: ${r.restored} új bejegyzés (összes: ${r.total})`, 'success');
+    await loadJournal();
+  } catch(e) {
+    showToast('❌ Hiba: ' + e.message, 'error');
   }
 }
 

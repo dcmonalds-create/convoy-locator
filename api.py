@@ -295,6 +295,31 @@ async def api_journal_delete(chat_id: int, entry_id: int):
     return {"ok": True}
 
 
+class JournalRestoreReq(BaseModel):
+    entries: list
+
+
+@app.post("/api/journal/{chat_id}/restore")
+async def api_journal_restore(chat_id: int, req: JournalRestoreReq):
+    """Visszaállítja a naplót egy JSON backup-ból. Meglévő adatot NEM törli —
+    csak azokat a bejegyzéseket adja hozzá, amelyek ID-ja még nem létezik."""
+    if not isinstance(req.entries, list):
+        raise HTTPException(status_code=400, detail="entries must be a list")
+    existing = journal_mod.load(chat_id)
+    existing_ids = {e.get("id") for e in existing}
+    added = 0
+    for entry in req.entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("id") not in existing_ids:
+            existing.append(entry)
+            existing_ids.add(entry.get("id"))
+            added += 1
+    if added:
+        journal_mod._save(chat_id, existing)
+    return {"ok": True, "restored": added, "total": len(existing)}
+
+
 class JournalExportReq(BaseModel):
     period:   str = "all"   # week | month | all
     month:    str = ""      # YYYY-MM, only used when period=month
