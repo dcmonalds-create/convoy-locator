@@ -96,8 +96,26 @@ def _register_handlers(ptb: Application) -> None:
 ptb_app: Application | None = None
 
 
+def _check_storage() -> None:
+    """Startup-on ellenőrzi, hogy a persistent volume tényleg mountolva van."""
+    storage = pathlib.Path(os.getenv("STORAGE_DIR", ""))
+    sentinel = storage / ".convoy_volume_check"
+    try:
+        sentinel.write_text("ok", encoding="utf-8")
+        assert sentinel.read_text(encoding="utf-8") == "ok"
+        sentinel.unlink()
+        log.info("Storage volume OK: %s", storage)
+    except Exception as exc:
+        log.critical(
+            "STORAGE VOLUME CHECK FAILED at '%s': %s — journal data will be LOST on redeploy! "
+            "Ensure STORAGE_DIR=/data is set and the Railway volume is mounted.",
+            storage, exc,
+        )
+
+
 @asynccontextmanager
 async def lifespan(fast_app: FastAPI):
+    _check_storage()
     global ptb_app
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:

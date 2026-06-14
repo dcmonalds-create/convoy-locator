@@ -1,36 +1,81 @@
 """
 Szállítási napló per felhasználó.
 Fájl: {STORAGE_DIR}/journal_{chat_id}.json
+Backup: {STORAGE_DIR}/journal_{chat_id}.json.bak
+
+Adatbiztonság:
+- Atomi írás: .tmp → os.replace() — szerver crash nem korruptálja a fájlt
+- Auto backup: minden sikeres írás után .bak fájl is frissül
+- Backup recovery: ha a fő fájl sérül, a .bak-ból töltjük be
 """
 from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 from pathlib import Path
 
-_CACHE_DIR = Path(os.getenv("STORAGE_DIR", str(Path(__file__).parent / "cache")))
-_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+log = logging.getLogger("convoy-journal")
+
+_STORAGE_DIR = Path(os.getenv("STORAGE_DIR", str(Path(__file__).parent / "cache")))
+
+if str(_STORAGE_DIR) != "/data":
+    log.warning(
+        "STORAGE_DIR is '%s' — journal data is NOT on the persistent volume! "
+        "Set STORAGE_DIR=/data in Railway Variables to prevent data loss on redeploy.",
+        _STORAGE_DIR,
+    )
+
+_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _path(chat_id: int) -> Path:
-    return _CACHE_DIR / f"journal_{chat_id}.json"
+    return _STORAGE_DIR / f"journal_{chat_id}.json"
+
+
+def _bak_path(chat_id: int) -> Path:
+    return _STORAGE_DIR / f"journal_{chat_id}.json.bak"
 
 
 def load(chat_id: int) -> list[dict]:
-    p = _path(chat_id)
-    if p.exists():
+    """Betöltés főfájlból; ha sérült, a backup-ból állítja helyre."""
+    main = _path(chat_id)
+    bak  = _bak_path(chat_id)
+
+    for path, label in ((main, "main"), (bak, "backup")):
+        if not path.exists():
+            continue
         try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, list):
+                raise ValueError("root is not a list")
+            if label == "backup":
+                log.warning("journal_%s: main file corrupt — recovered from .bak", chat_id)
+                # Azonnal visszaírjuk a helyreállított adatot a fő fájlba
+                _atomic_write(main, data)
+            return data
+        except Exception as exc:
+            log.error("journal_%s: failed to parse %s (%s)", chat_id, label, exc)
+
     return []
 
 
+def _atomic_write(path: Path, entries: list) -> None:
+    """Atomi írás: .tmp → os.replace() — crash esetén sem korruptálódik a fájl."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def _save(chat_id: int, entries: list[dict]) -> None:
-    _path(chat_id).write_text(
-        json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    main = _path(chat_id)
+    bak  = _bak_path(chat_id)
+
+    # 1. Atomi írás a fő fájlba
+    _atomic_write(main, entries)
+    # 2. Backup frissítése (ha a fő írás sikerült)
+    _atomic_write(bak, entries)
 
 
 def add_entry(
@@ -115,15 +160,12 @@ def monthly_report(chat_id: int, month: int, year: int) -> str:
         return ""
     lines = []
     for e in entries:
-        szallito = e.get("szallito", "-")
-        rendszam = e.get("rendszam", "-")
-        route    = e.get("route", "-")
-        notes    = e.get("notes", "")
-        km       = e.get("megtett_km", "-")
-        line = (
+        km    = e.get("megtett_km", "-")
+        notes = e.get("notes", "")
+        line  = (
             f"*#{e['id']}* | {e.get('date', '?')}\n"
-            f"🏢 {szallito}  🚛 {rendszam}\n"
-            f"🛣 {route}"
+            f"🏢 {e.get('szallito', '-')}  🚛 {e.get('rendszam', '-')}\n"
+            f"🛣 {e.get('route', '-')}"
         )
         if km and km != "-":
             line += f"  🔢 {km} km"
