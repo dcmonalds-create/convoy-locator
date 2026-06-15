@@ -471,21 +471,52 @@ async def resolve_maps_link(url: str):
     """Google Maps link (rövid vagy hosszú) → {lat, lng}."""
     import re as _re
     import httpx as _httpx
+
+    _HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "hu-HU,hu;q=0.9,en;q=0.8",
+    }
+
+    def _extract(s: str):
+        """Try multiple coordinate patterns; return (lat, lng) or None."""
+        patterns = [
+            r'/@(-?\d+\.\d+),(-?\d+\.\d+)',            # /@lat,lng in URL
+            r'[?&]q=(?:loc:)?(-?\d+\.\d+)[,+](-?\d+\.\d+)',  # ?q=lat,lng
+            r'll=(-?\d+\.\d+),(-?\d+\.\d+)',            # ll=lat,lng
+            r'"lat"\s*:\s*(-?\d+\.\d+).*?"lng"\s*:\s*(-?\d+\.\d+)',  # JSON
+            r'\[(-?\d{1,3}\.\d{5,}),(-?\d{1,3}\.\d{5,})\]',         # array
+            r'(-?\d{1,3}\.\d{6,}),(-?\d{1,3}\.\d{6,})',              # bare pair
+        ]
+        for pat in patterns:
+            m = _re.search(pat, s)
+            if m:
+                lat, lng = float(m.group(1)), float(m.group(2))
+                if -90 <= lat <= 90 and -180 <= lng <= 180 and (lat != 0 or lng != 0):
+                    return round(lat, 6), round(lng, 6)
+        return None
+
     try:
-        async with _httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
-            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        async with _httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
+            r = await client.get(url, headers=_HEADERS)
+
         final_url = str(r.url)
-        # /@lat,lng,zoom
-        m = _re.search(r'/@(-?\d+\.\d+),(-?\d+\.\d+)', final_url)
-        if not m:
-            # ?q=lat,lng or ?q=loc:lat+lng
-            m = _re.search(r'[?&]q=(?:loc:)?(-?\d+\.\d+)[,+](-?\d+\.\d+)', final_url)
-        if not m:
-            # in page body
-            m = _re.search(r'@(-?\d{1,3}\.\d{5,}),(-?\d{1,3}\.\d{5,})', r.text[:8000])
-        if m:
-            return {"lat": round(float(m.group(1)), 6), "lng": round(float(m.group(2)), 6)}
-        raise HTTPException(status_code=400, detail="Koordináta nem található a linkben")
+        log.info("resolve_maps_link final_url=%s", final_url[:300])
+
+        # 1. Try the final URL first
+        result = _extract(final_url)
+        # 2. Try the HTML body (first 20 kB)
+        if not result:
+            result = _extract(r.text[:20000])
+
+        if result:
+            return {"lat": result[0], "lng": result[1]}
+
+        log.warning("resolve_maps_link: no coords found. url=%s final=%s", url, final_url[:200])
+        raise HTTPException(status_code=400, detail="Koordináta nem található — próbálj koordinátát beírni: 47.1182, 21.8173")
     except HTTPException:
         raise
     except Exception as exc:
