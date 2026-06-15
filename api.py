@@ -468,9 +468,16 @@ async def api_journal_backup(chat_id: int):
 
 @app.get("/api/resolve-maps-link")
 async def resolve_maps_link(url: str):
-    """Google Maps link (rövid vagy hosszú) → {lat, lng}."""
+    """Google Maps link (rövid vagy hosszú) → {lat, lng}.
+
+    Fallback lánc:
+    1. Koordináta az URL-ben (/@lat,lng  vagy  ?q=lat,lng  stb.)
+    2. Koordináta a HTML törzsben (ha JS nélkül elérhető)
+    3. ?q= helyértéke → Geocoding API (helynév → koordináta)
+    """
     import re as _re
     import httpx as _httpx
+    from urllib.parse import urlparse, parse_qs
 
     _HEADERS = {
         "User-Agent": (
@@ -481,21 +488,19 @@ async def resolve_maps_link(url: str):
         "Accept-Language": "hu-HU,hu;q=0.9,en;q=0.8",
     }
 
-    def _extract(s: str):
-        """Try multiple coordinate patterns; return (lat, lng) or None."""
-        patterns = [
-            r'/@(-?\d+\.\d+),(-?\d+\.\d+)',            # /@lat,lng in URL
-            r'[?&]q=(?:loc:)?(-?\d+\.\d+)[,+](-?\d+\.\d+)',  # ?q=lat,lng
-            r'll=(-?\d+\.\d+),(-?\d+\.\d+)',            # ll=lat,lng
-            r'"lat"\s*:\s*(-?\d+\.\d+).*?"lng"\s*:\s*(-?\d+\.\d+)',  # JSON
-            r'\[(-?\d{1,3}\.\d{5,}),(-?\d{1,3}\.\d{5,})\]',         # array
-            r'(-?\d{1,3}\.\d{6,}),(-?\d{1,3}\.\d{6,})',              # bare pair
-        ]
-        for pat in patterns:
+    def _extract_coords(s: str):
+        for pat in [
+            r'/@(-?\d+\.\d+),(-?\d+\.\d+)',
+            r'[?&]q=(?:loc:)?(-?\d+\.\d+)[,+](-?\d+\.\d+)',
+            r'll=(-?\d+\.\d+),(-?\d+\.\d+)',
+            r'"lat"\s*:\s*(-?\d+\.\d+).*?"lng"\s*:\s*(-?\d+\.\d+)',
+            r'\[(-?\d{1,3}\.\d{5,}),(-?\d{1,3}\.\d{5,})\]',
+            r'(-?\d{1,3}\.\d{6,}),(-?\d{1,3}\.\d{6,})',
+        ]:
             m = _re.search(pat, s)
             if m:
                 lat, lng = float(m.group(1)), float(m.group(2))
-                if -90 <= lat <= 90 and -180 <= lng <= 180 and (lat != 0 or lng != 0):
+                if -90 <= lat <= 90 and -180 <= lng <= 180 and (lat, lng) != (0, 0):
                     return round(lat, 6), round(lng, 6)
         return None
 
@@ -506,17 +511,38 @@ async def resolve_maps_link(url: str):
         final_url = str(r.url)
         log.info("resolve_maps_link final_url=%s", final_url[:300])
 
-        # 1. Try the final URL first
-        result = _extract(final_url)
-        # 2. Try the HTML body (first 20 kB)
-        if not result:
-            result = _extract(r.text[:20000])
-
+        # 1. Koordináta az URL-ben
+        result = _extract_coords(final_url)
         if result:
             return {"lat": result[0], "lng": result[1]}
 
-        log.warning("resolve_maps_link: no coords found. url=%s final=%s", url, final_url[:200])
-        raise HTTPException(status_code=400, detail="Koordináta nem található — próbálj koordinátát beírni: 47.1182, 21.8173")
+        # 2. Koordináta a HTML-ben
+        result = _extract_coords(r.text[:20000])
+        if result:
+            return {"lat": result[0], "lng": result[1]}
+
+        # 3. ?q= helynév → Geocoding API
+        qs = parse_qs(urlparse(final_url).query)
+        place = (qs.get("q") or qs.get("query") or [None])[0]
+        if place:
+            api_key = os.getenv("GOOGLE_PLACES_API_KEY", "")
+            if api_key:
+                async with _httpx.AsyncClient(timeout=10) as client:
+                    geo = await client.get(
+                        "https://maps.googleapis.com/maps/api/geocode/json",
+                        params={"address": place, "key": api_key},
+                    )
+                data = geo.json()
+                if data.get("results"):
+                    loc = data["results"][0]["geometry"]["location"]
+                    log.info("resolve_maps_link geocoded '%s' → %s", place, loc)
+                    return {"lat": round(loc["lat"], 6), "lng": round(loc["lng"], 6)}
+
+        log.warning("resolve_maps_link: no coords. url=%s final=%s", url, final_url[:200])
+        raise HTTPException(
+            status_code=400,
+            detail="Koordináta nem található — írj be koordinátát: 47.1182, 21.8173",
+        )
     except HTTPException:
         raise
     except Exception as exc:
