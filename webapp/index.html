@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='16';
+  var V='17';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -846,8 +846,9 @@ html, body {
   <!-- ── Screen: Shortcuts ── -->
   <div class="screen hidden" id="s-shortcuts">
     <div class="journal-search-bar">
-      <input class="journal-search-input" id="sc-search" type="text" placeholder="🔍 Keresés a shortcutok között…" oninput="renderShortcuts()">
+      <input class="journal-search-input" id="sc-search" type="text" placeholder="🔍 Keresés név, kategória…" oninput="renderShortcuts()">
     </div>
+    <div id="sc-cat-bar" style="display:flex;gap:6px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
     <div class="results-list" id="shortcuts-list"></div>
   </div>
 
@@ -860,6 +861,11 @@ html, body {
         <div class="form-field">
           <label class="form-label">📛 Shortcut neve</label>
           <input class="form-input" id="sc-name" placeholder="pl. Parkoló Bors">
+        </div>
+        <div class="form-field">
+          <label class="form-label">🏷 Kategória <span style="color:var(--text-dim);font-weight:400">(opcionális)</span></label>
+          <input class="form-input" id="sc-cat" placeholder="pl. Parkoló, Étel, Mosonmagyaróvár…" list="sc-cat-list">
+          <datalist id="sc-cat-list"></datalist>
         </div>
         <div class="form-field">
           <label class="form-label">🔗 Google Maps link vagy koordináta</label>
@@ -1887,30 +1893,59 @@ async function backupJournal() {
 
 // ── Shortcuts ─────────────────────────────────────────────────────────────────
 let _scEditId = null;
+let _scActiveCat = '';   // '' = Összes
 
 async function loadShortcuts() {
   if (!S.chatId) return;
   try {
     const r = await api(`/api/shortcuts/${S.chatId}`);
     S.shortcuts = r.shortcuts || [];
+    _renderCatBar();
     renderShortcuts();
   } catch(e) {
     showToast('❌ Shortcuts betöltés sikertelen', 'error');
   }
 }
 
+function _renderCatBar() {
+  const bar = document.getElementById('sc-cat-bar');
+  if (!bar) return;
+  const cats = [...new Set(S.shortcuts.map(s => s.category).filter(Boolean))].sort();
+  if (!cats.length) { bar.innerHTML = ''; return; }
+  const all = [{ label: 'Összes', val: '' }, ...cats.map(c => ({ label: c, val: c }))];
+  bar.innerHTML = all.map(c => `
+    <button onclick="_setScCat('${c.val}')"
+      style="flex-shrink:0;white-space:nowrap;padding:6px 14px;border-radius:20px;border:1px solid var(--border);
+             background:${_scActiveCat===c.val ? 'var(--accent)' : 'var(--surface)'};
+             color:${_scActiveCat===c.val ? '#000' : 'var(--text-muted)'};
+             font-size:12px;font-weight:600;cursor:pointer">
+      ${c.label}
+    </button>`).join('');
+  // also fill datalist for modal autocomplete
+  const dl = document.getElementById('sc-cat-list');
+  if (dl) dl.innerHTML = cats.map(c => `<option value="${c}">`).join('');
+}
+
+function _setScCat(cat) {
+  _scActiveCat = cat;
+  _renderCatBar();
+  renderShortcuts();
+}
+
 function openScModal(id) {
   _scEditId = id;
   const sc = id !== null ? S.shortcuts.find(s => s.id === id) : null;
   document.getElementById('sc-modal-title').textContent = sc ? '✏️ Shortcut szerkesztése' : '⭐ Új shortcut';
-  document.getElementById('sc-name').value = sc ? sc.name : '';
-  document.getElementById('sc-url').value  = sc ? sc.url  : '';
+  document.getElementById('sc-name').value = sc ? sc.name     : '';
+  document.getElementById('sc-cat').value  = sc ? (sc.category||'') : (_scActiveCat||'');
+  document.getElementById('sc-url').value  = sc ? sc.url      : '';
   showModal('sc-modal');
 }
 
 async function saveShortcut() {
-  const name = document.getElementById('sc-name').value.trim();
-  const raw  = document.getElementById('sc-url').value.trim();
+  const name     = document.getElementById('sc-name').value.trim();
+  const raw      = document.getElementById('sc-url').value.trim();
+  const category = document.getElementById('sc-cat').value.trim();
   if (!name || !raw) { showToast('Név és link szükséges', 'error'); return; }
 
   let url = raw;
@@ -1923,10 +1958,10 @@ async function saveShortcut() {
   closeScModal();
   try {
     if (_scEditId !== null) {
-      await api(`/api/shortcuts/${S.chatId}/${_scEditId}`, 'PUT', { name, url });
+      await api(`/api/shortcuts/${S.chatId}/${_scEditId}`, 'PUT', { name, url, category });
       showToast('✏️ Shortcut frissítve', 'success');
     } else {
-      await api(`/api/shortcuts/${S.chatId}`, 'POST', { name, url });
+      await api(`/api/shortcuts/${S.chatId}`, 'POST', { name, url, category });
       showToast('⭐ Shortcut mentve', 'success');
     }
     await loadShortcuts();
@@ -1939,6 +1974,7 @@ async function deleteShortcut(id) {
   try {
     await api(`/api/shortcuts/${S.chatId}/${id}`, 'DELETE');
     S.shortcuts = S.shortcuts.filter(s => s.id !== id);
+    _renderCatBar();
     renderShortcuts();
   } catch(e) {
     showToast('❌ Törlés sikertelen', 'error');
@@ -1948,21 +1984,27 @@ async function deleteShortcut(id) {
 function renderShortcuts() {
   const list = document.getElementById('shortcuts-list');
   if (!list) return;
-  const q = (document.getElementById('sc-search')?.value || '').toLowerCase().trim();
-  const items = q ? S.shortcuts.filter(s => s.name.toLowerCase().includes(q) || s.url.toLowerCase().includes(q)) : S.shortcuts;
+  const q   = (document.getElementById('sc-search')?.value || '').toLowerCase().trim();
+  let items = S.shortcuts;
+  if (_scActiveCat) items = items.filter(s => s.category === _scActiveCat);
+  if (q) items = items.filter(s =>
+    s.name.toLowerCase().includes(q) ||
+    (s.category||'').toLowerCase().includes(q) ||
+    s.url.toLowerCase().includes(q)
+  );
 
   if (!items.length) {
     list.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">⭐</div>
-      <div class="empty-state-title">${q ? 'Nincs találat' : 'Még nincsenek shortcutok'}</div>
-      <div class="empty-state-text">${q ? '' : 'Adj hozzá a ➕ gombbal.'}</div>
+      <div class="empty-state-title">${(q||_scActiveCat) ? 'Nincs találat' : 'Még nincsenek shortcutok'}</div>
+      <div class="empty-state-text">${(q||_scActiveCat) ? '' : 'Adj hozzá a ➕ gombbal.'}</div>
     </div>`;
     return;
   }
   list.innerHTML = items.map(s => `
     <div class="shortcut-card">
       <div style="flex:1;min-width:0">
-        <div class="shortcut-card-name">${s.name}</div>
+        <div class="shortcut-card-name">${s.name}${s.category ? `<span style="margin-left:6px;font-size:10px;font-weight:600;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 8px;color:var(--text-muted)">${s.category}</span>` : ''}</div>
         <div class="shortcut-card-sub">${s.url}</div>
       </div>
       <div class="shortcut-actions">
@@ -1976,6 +2018,7 @@ function renderShortcuts() {
 function closeScModal(ev) {
   if (ev && ev.target !== document.getElementById('sc-modal')) return;
   document.getElementById('sc-name').value = '';
+  document.getElementById('sc-cat').value  = '';
   document.getElementById('sc-url').value  = '';
   hideModal('sc-modal');
 }

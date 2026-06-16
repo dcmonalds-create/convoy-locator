@@ -111,12 +111,18 @@ def _check_storage() -> None:
             with conn.cursor() as cur:
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS shortcuts (
-                        chat_id BIGINT NOT NULL,
-                        sc_id   BIGINT NOT NULL,
-                        name    TEXT   NOT NULL,
-                        url     TEXT   NOT NULL,
+                        chat_id  BIGINT NOT NULL,
+                        sc_id    BIGINT NOT NULL,
+                        name     TEXT   NOT NULL,
+                        url      TEXT   NOT NULL,
+                        category TEXT   NOT NULL DEFAULT '',
                         PRIMARY KEY (chat_id, sc_id)
                     )
+                """)
+                # Migrate existing tables that don't have category column yet
+                cur.execute("""
+                    ALTER TABLE shortcuts
+                    ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''
                 """)
         conn.close()
         log.info("PostgreSQL OK — tables ready")
@@ -489,6 +495,7 @@ def _sc_conn():
 class ShortcutReq(BaseModel):
     name: str
     url: str
+    category: str = ""
 
 
 @app.get("/api/shortcuts/{chat_id}")
@@ -497,10 +504,10 @@ async def api_shortcuts_list(chat_id: int):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT sc_id, name, url FROM shortcuts WHERE chat_id = %s ORDER BY sc_id",
+                "SELECT sc_id, name, url, category FROM shortcuts WHERE chat_id = %s ORDER BY category, sc_id",
                 (chat_id,),
             )
-            return {"shortcuts": [{"id": r[0], "name": r[1], "url": r[2]} for r in cur.fetchall()]}
+            return {"shortcuts": [{"id": r[0], "name": r[1], "url": r[2], "category": r[3]} for r in cur.fetchall()]}
     finally:
         conn.close()
 
@@ -514,10 +521,10 @@ async def api_shortcuts_add(chat_id: int, req: ShortcutReq):
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO shortcuts (chat_id, sc_id, name, url) VALUES (%s, %s, %s, %s)",
-                    (chat_id, sc_id, req.name.strip(), req.url.strip()),
+                    "INSERT INTO shortcuts (chat_id, sc_id, name, url, category) VALUES (%s, %s, %s, %s, %s)",
+                    (chat_id, sc_id, req.name.strip(), req.url.strip(), req.category.strip()),
                 )
-        return {"id": sc_id, "name": req.name.strip(), "url": req.url.strip()}
+        return {"id": sc_id, "name": req.name.strip(), "url": req.url.strip(), "category": req.category.strip()}
     finally:
         conn.close()
 
@@ -529,8 +536,8 @@ async def api_shortcuts_update(chat_id: int, sc_id: int, req: ShortcutReq):
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE shortcuts SET name = %s, url = %s WHERE chat_id = %s AND sc_id = %s",
-                    (req.name.strip(), req.url.strip(), chat_id, sc_id),
+                    "UPDATE shortcuts SET name = %s, url = %s, category = %s WHERE chat_id = %s AND sc_id = %s",
+                    (req.name.strip(), req.url.strip(), req.category.strip(), chat_id, sc_id),
                 )
                 if cur.rowcount == 0:
                     raise HTTPException(status_code=404, detail="Shortcut not found")
