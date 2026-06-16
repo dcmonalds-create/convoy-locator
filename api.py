@@ -99,18 +99,29 @@ ptb_app: Application | None = None
 
 
 def _check_storage() -> None:
-    """Startup-on ellenőrzi, hogy a Postgres kapcsolat működik."""
+    """Startup-on ellenőrzi, hogy a Postgres kapcsolat működik, és inicializálja a táblákat."""
     import psycopg2
     db_url = os.getenv("DATABASE_URL", "").replace("postgres://", "postgresql://", 1)
     if not db_url:
-        log.critical("DATABASE_URL not set — journal data will NOT be persisted!")
+        log.critical("DATABASE_URL not set — data will NOT be persisted!")
         return
     try:
         conn = psycopg2.connect(db_url)
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS shortcuts (
+                        chat_id BIGINT NOT NULL,
+                        sc_id   BIGINT NOT NULL,
+                        name    TEXT   NOT NULL,
+                        url     TEXT   NOT NULL,
+                        PRIMARY KEY (chat_id, sc_id)
+                    )
+                """)
         conn.close()
-        log.info("PostgreSQL connection OK — journal data is persistent")
+        log.info("PostgreSQL OK — tables ready")
     except Exception as exc:
-        log.critical("PostgreSQL connection FAILED: %s", exc)
+        log.critical("PostgreSQL FAILED: %s", exc)
 
 
 @asynccontextmanager
@@ -464,6 +475,83 @@ async def api_journal_backup(chat_id: int):
         log.exception("Journal backup send failed")
         raise HTTPException(status_code=500, detail=f"Backup küldés sikertelen: {e}")
     return {"ok": True, "count": len(entries)}
+
+
+# ── Shortcuts API ─────────────────────────────────────────────────────────────
+
+def _sc_conn():
+    import psycopg2
+    return psycopg2.connect(
+        os.getenv("DATABASE_URL", "").replace("postgres://", "postgresql://", 1)
+    )
+
+
+class ShortcutReq(BaseModel):
+    name: str
+    url: str
+
+
+@app.get("/api/shortcuts/{chat_id}")
+async def api_shortcuts_list(chat_id: int):
+    conn = _sc_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT sc_id, name, url FROM shortcuts WHERE chat_id = %s ORDER BY sc_id",
+                (chat_id,),
+            )
+            return {"shortcuts": [{"id": r[0], "name": r[1], "url": r[2]} for r in cur.fetchall()]}
+    finally:
+        conn.close()
+
+
+@app.post("/api/shortcuts/{chat_id}")
+async def api_shortcuts_add(chat_id: int, req: ShortcutReq):
+    import time as _time
+    sc_id = int(_time.time() * 1000)
+    conn = _sc_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO shortcuts (chat_id, sc_id, name, url) VALUES (%s, %s, %s, %s)",
+                    (chat_id, sc_id, req.name.strip(), req.url.strip()),
+                )
+        return {"id": sc_id, "name": req.name.strip(), "url": req.url.strip()}
+    finally:
+        conn.close()
+
+
+@app.put("/api/shortcuts/{chat_id}/{sc_id}")
+async def api_shortcuts_update(chat_id: int, sc_id: int, req: ShortcutReq):
+    conn = _sc_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE shortcuts SET name = %s, url = %s WHERE chat_id = %s AND sc_id = %s",
+                    (req.name.strip(), req.url.strip(), chat_id, sc_id),
+                )
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Shortcut not found")
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@app.delete("/api/shortcuts/{chat_id}/{sc_id}")
+async def api_shortcuts_delete(chat_id: int, sc_id: int):
+    conn = _sc_conn()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM shortcuts WHERE chat_id = %s AND sc_id = %s",
+                    (chat_id, sc_id),
+                )
+        return {"ok": True}
+    finally:
+        conn.close()
 
 
 @app.get("/api/resolve-maps-link")

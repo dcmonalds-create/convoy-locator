@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='15';
+  var V='16';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -851,11 +851,11 @@ html, body {
     <div class="results-list" id="shortcuts-list"></div>
   </div>
 
-  <!-- ── Modal: Add Shortcut ── -->
+  <!-- ── Modal: Add / Edit Shortcut ── -->
   <div class="modal-overlay hidden" id="sc-modal" onclick="closeScModal(event)">
     <div class="modal-sheet" onclick="event.stopPropagation()">
       <div class="modal-handle"></div>
-      <div class="modal-title">⭐ Új shortcut</div>
+      <div class="modal-title" id="sc-modal-title">⭐ Új shortcut</div>
       <div class="modal-body">
         <div class="form-field">
           <label class="form-label">📛 Shortcut neve</label>
@@ -1034,7 +1034,7 @@ const S = {
   journal:   [],
   kmMode:    'all',
   kmMonth:   '',
-  shortcuts: JSON.parse(localStorage.getItem('cl_shortcuts') || '[]'),
+  shortcuts: [],
   chatId:    null,
   notes:     localStorage.getItem('cl_notes') || '',
   checklist: JSON.parse(localStorage.getItem('cl_checks') || 'null'),
@@ -1294,11 +1294,11 @@ function navTo(screen) {
   if (screen === 'shortcuts') {
     action.classList.remove('hidden');
     action.textContent = '➕';
-    action.onclick = () => showModal('sc-modal');
+    action.onclick = () => openScModal(null);
   }
   if (screen === 'checklist') renderChecklist();
   if (screen === 'journal') loadJournal();
-  if (screen === 'shortcuts') renderShortcuts();
+  if (screen === 'shortcuts') loadShortcuts();
   if (screen === 'beststop' && !S.clusters.length) doBestStop();
 }
 
@@ -1886,36 +1886,63 @@ async function backupJournal() {
 }
 
 // ── Shortcuts ─────────────────────────────────────────────────────────────────
-function _saveShortcuts() {
-  localStorage.setItem('cl_shortcuts', JSON.stringify(S.shortcuts));
+let _scEditId = null;
+
+async function loadShortcuts() {
+  if (!S.chatId) return;
+  try {
+    const r = await api(`/api/shortcuts/${S.chatId}`);
+    S.shortcuts = r.shortcuts || [];
+    renderShortcuts();
+  } catch(e) {
+    showToast('❌ Shortcuts betöltés sikertelen', 'error');
+  }
 }
 
-function saveShortcut() {
+function openScModal(id) {
+  _scEditId = id;
+  const sc = id !== null ? S.shortcuts.find(s => s.id === id) : null;
+  document.getElementById('sc-modal-title').textContent = sc ? '✏️ Shortcut szerkesztése' : '⭐ Új shortcut';
+  document.getElementById('sc-name').value = sc ? sc.name : '';
+  document.getElementById('sc-url').value  = sc ? sc.url  : '';
+  showModal('sc-modal');
+}
+
+async function saveShortcut() {
   const name = document.getElementById('sc-name').value.trim();
   const raw  = document.getElementById('sc-url').value.trim();
   if (!name || !raw) { showToast('Név és link szükséges', 'error'); return; }
 
-  // Accept raw coordinates or full URL
   let url = raw;
   if (!raw.startsWith('http')) {
     const parts = raw.split(/[,;\s]+/).map(Number);
-    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1]))
       url = `https://maps.google.com/?q=${parts[0]},${parts[1]}`;
-    }
   }
 
-  const id = Date.now();
-  S.shortcuts.push({ id, name, url });
-  _saveShortcuts();
   closeScModal();
-  renderShortcuts();
-  showToast('⭐ Shortcut mentve', 'success');
+  try {
+    if (_scEditId !== null) {
+      await api(`/api/shortcuts/${S.chatId}/${_scEditId}`, 'PUT', { name, url });
+      showToast('✏️ Shortcut frissítve', 'success');
+    } else {
+      await api(`/api/shortcuts/${S.chatId}`, 'POST', { name, url });
+      showToast('⭐ Shortcut mentve', 'success');
+    }
+    await loadShortcuts();
+  } catch(e) {
+    showToast('❌ Mentés sikertelen: ' + e.message, 'error');
+  }
 }
 
-function deleteShortcut(id) {
-  S.shortcuts = S.shortcuts.filter(s => s.id !== id);
-  _saveShortcuts();
-  renderShortcuts();
+async function deleteShortcut(id) {
+  try {
+    await api(`/api/shortcuts/${S.chatId}/${id}`, 'DELETE');
+    S.shortcuts = S.shortcuts.filter(s => s.id !== id);
+    renderShortcuts();
+  } catch(e) {
+    showToast('❌ Törlés sikertelen', 'error');
+  }
 }
 
 function renderShortcuts() {
@@ -1940,6 +1967,7 @@ function renderShortcuts() {
       </div>
       <div class="shortcut-actions">
         <button class="btn btn-primary" style="padding:8px 12px;font-size:13px" onclick="openMaps('${s.url}')">🗺</button>
+        <button class="btn btn-ghost"   style="padding:8px 12px;font-size:13px" onclick="openScModal(${s.id})">✏️</button>
         <button class="shortcut-del-btn" onclick="deleteShortcut(${s.id})">🗑</button>
       </div>
     </div>`).join('');
