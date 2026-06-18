@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='17';
+  var V='18';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -1611,26 +1611,35 @@ async function loadJournal() {
   }
 }
 
-function renderJournal(entries) {
-  if (entries === undefined) entries = S.journal;
-  const list = document.getElementById('journal-list');
-  if (!entries.length) {
-    list.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">📓</div>
-      <div class="empty-state-title">${t('noEntries')}</div>
-      <div class="empty-state-text">Adj hozzá az ➕ gombbal.</div>
-    </div>`;
-    return;
-  }
-  list.innerHTML = entries.map(e => `
+function _jrnDayLabel(e) {
+  const d = _parseDatumInd(e);
+  if (!d) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const yest  = new Date(today); yest.setDate(yest.getDate()-1);
+  d.setHours(0,0,0,0);
+  if (d.getTime() === today.getTime()) return 'Ma';
+  if (d.getTime() === yest.getTime())  return 'Tegnap';
+  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+}
+
+function _jrnDayKey(e) {
+  const d = _parseDatumInd(e);
+  if (!d) return '__nodate__';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function _renderJournalCard(e) {
+  return `
     <div class="journal-card">
       <div class="journal-card-header">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="journal-card-id">#${e.id}</span>
-          ${e.szallito && e.szallito !== '-' ? `<span style="font-size:14px;font-weight:700;color:var(--accent)">🏢 ${e.szallito}</span>` : ''}
+          ${e.route && e.route !== '-' ? `<span style="font-size:14px;font-weight:700;color:var(--accent)">🛣 ${e.route}</span>` : ''}
         </div>
+        <span class="journal-card-date">${e.date||''}</span>
       </div>
       <div class="journal-card-meta">
+        ${e.szallito   && e.szallito   !== '-' ? `<span class="journal-tag">🏢 ${e.szallito}</span>` : ''}
         ${e.rendszam   && e.rendszam   !== '-' ? `<span class="journal-tag">🚗 ${e.rendszam}</span>` : ''}
         ${e.sofor_neve && e.sofor_neve !== '-' ? `<span class="journal-tag">👤 ${e.sofor_neve}</span>` : ''}
         ${e.kisert_rsz && e.kisert_rsz !== '-' ? `<span class="journal-tag">🚛 ${e.kisert_rsz}</span>` : ''}
@@ -1643,7 +1652,6 @@ function renderJournal(entries) {
         ${e.index_ind  && e.index_ind  !== '-' ? `<span class="journal-tag">↗ ${e.index_ind} km</span>` : ''}
         ${e.index_erk  && e.index_erk  !== '-' ? `<span class="journal-tag">↙ ${e.index_erk} km</span>` : ''}
         ${e.megtett_km && e.megtett_km !== '-' ? `<span class="journal-tag" style="background:rgba(99,102,241,0.1);border-color:#4338ca">🔢 ${e.megtett_km} km</span>` : ''}
-        ${e.route      && e.route      !== '-' ? `<span class="journal-tag">🛣 ${e.route}</span>` : ''}
       </div>
       ${e.gmaps_route ? `<a href="${e.gmaps_route}" target="_blank" class="btn btn-ghost" style="margin-top:8px;font-size:12px;padding:6px 10px;display:inline-flex">🗺 Kamion útvonal megnyitása</a>` : ''}
       ${e.notes ? `<div class="journal-tag-note">📝 ${e.notes}</div>` : ''}
@@ -1651,7 +1659,44 @@ function renderJournal(entries) {
         <button class="journal-action-btn" onclick="openEditJrn(${e.id})">✏️ Szerkeszt</button>
         <button class="journal-action-btn danger" onclick="deleteJrn(${e.id})">🗑 Töröl</button>
       </div>
-    </div>`).join('');
+    </div>`;
+}
+
+function renderJournal(entries) {
+  if (entries === undefined) entries = S.journal;
+  const list = document.getElementById('journal-list');
+  if (!entries.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">📓</div>
+      <div class="empty-state-title">${t('noEntries')}</div>
+      <div class="empty-state-text">Adj hozzá az ➕ gombbal.</div>
+    </div>`;
+    return;
+  }
+
+  // Group by day (datum_ind), sorted descending
+  const groups = new Map();
+  for (const e of entries) {
+    const key = _jrnDayKey(e);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  }
+  const sortedKeys = [...groups.keys()].sort().reverse();
+
+  let html = '';
+  for (const key of sortedKeys) {
+    const grp = groups.get(key);
+    const km  = grp.reduce((s, e) => s + parseKm(e.megtett_km), 0);
+    if (key !== '__nodate__') {
+      const label = _jrnDayLabel(grp[0]);
+      html += `<div style="padding:12px 16px 4px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${label}</span>
+        <span style="font-size:11px;color:var(--accent);font-weight:600">${grp.length} útvonal · ${km} km</span>
+      </div>`;
+    }
+    html += grp.map(_renderJournalCard).join('');
+  }
+  list.innerHTML = html;
 }
 
 // ── Megtett km összegzés ──────────────────────────────────────────────────────
