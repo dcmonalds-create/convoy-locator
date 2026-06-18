@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='18';
+  var V='19';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -820,18 +820,17 @@ html, body {
 
   <!-- ── Screen: Journal ── -->
   <div class="screen hidden" id="s-journal">
-    <div class="km-summary">
+    <div class="km-summary" style="flex-direction:column;align-items:stretch;gap:8px">
       <div class="km-summary-main">
         <span class="km-summary-label">🔢 Megtett kilométer</span>
         <span class="km-summary-value" id="km-total">0 km</span>
       </div>
-      <div class="km-summary-controls">
-        <select id="km-month" class="km-month-select" style="display:none" onchange="updateKmSummary()"></select>
-        <div class="km-toggle">
-          <button id="km-tab-month" class="km-toggle-btn" onclick="setKmMode('month')">Havonta</button>
-          <button id="km-tab-all" class="km-toggle-btn active" onclick="setKmMode('all')">Összes</button>
-        </div>
+      <div class="km-toggle" style="width:100%">
+        <button id="km-tab-week"  class="km-toggle-btn" onclick="setKmMode('week')"  style="flex:1">Heti</button>
+        <button id="km-tab-month" class="km-toggle-btn" onclick="setKmMode('month')" style="flex:1">Havonta</button>
+        <button id="km-tab-all"   class="km-toggle-btn active" onclick="setKmMode('all')" style="flex:1">Összes</button>
       </div>
+      <select id="km-month" class="km-month-select" style="display:none;width:100%;max-width:100%" onchange="updateKmSummary()"></select>
     </div>
     <div class="journal-search-bar" style="display:flex;gap:8px;align-items:center">
       <input class="journal-search-input" id="jrn-search" type="text" placeholder="🔍 Keresés: rendszám, szállító, sofőr…" oninput="filterJournal()" style="flex:1">
@@ -1689,9 +1688,8 @@ function renderJournal(entries) {
     const km  = grp.reduce((s, e) => s + parseKm(e.megtett_km), 0);
     if (key !== '__nodate__') {
       const label = _jrnDayLabel(grp[0]);
-      html += `<div style="padding:12px 16px 4px;display:flex;justify-content:space-between;align-items:center">
+      html += `<div style="padding:12px 16px 4px">
         <span style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">${label}</span>
-        <span style="font-size:11px;color:var(--accent);font-weight:600">${grp.length} útvonal · ${km} km</span>
       </div>`;
     }
     html += grp.map(_renderJournalCard).join('');
@@ -1713,8 +1711,8 @@ function entryMonth(e) {
 }
 function setKmMode(mode) {
   S.kmMode = mode;
-  document.getElementById('km-tab-month').classList.toggle('active', mode === 'month');
-  document.getElementById('km-tab-all').classList.toggle('active', mode === 'all');
+  ['week','month','all'].forEach(k =>
+    document.getElementById(`km-tab-${k}`).classList.toggle('active', k === mode));
   document.getElementById('km-month').style.display = (mode === 'month') ? '' : 'none';
   updateKmSummary();
 }
@@ -1722,7 +1720,8 @@ function updateKmSummary() {
   const entries = S.journal || [];
   const sel = document.getElementById('km-month');
   if (!sel) return;
-  // A select aktuális értéke az elsődleges (onchange / kézi választás), majd S.kmMonth
+
+  // Month selector (only needed for 'month' mode)
   const prevSelected = sel.value || S.kmMonth;
   const months = [...new Set(entries.map(entryMonth).filter(Boolean))].sort().reverse();
   const wanted = months.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -1732,8 +1731,17 @@ function updateKmSummary() {
   S.kmMonth = cur;
   sel.value = cur;
 
-  let total;
-  if (S.kmMode === 'month') {
+  let total = 0;
+  if (S.kmMode === 'week') {
+    // Current ISO week Mon–Sun using _parseDatumInd
+    const now = new Date(); now.setHours(0,0,0,0);
+    const mon = new Date(now); mon.setDate(now.getDate() - now.getDay() + (now.getDay()===0 ? -6 : 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    total = entries.filter(e => {
+      const d = _parseDatumInd(e);
+      return d && d >= mon && d <= sun;
+    }).reduce((s, e) => s + parseKm(e.megtett_km), 0);
+  } else if (S.kmMode === 'month') {
     total = entries.filter(e => entryMonth(e) === S.kmMonth)
                    .reduce((s, e) => s + parseKm(e.megtett_km), 0);
   } else {
