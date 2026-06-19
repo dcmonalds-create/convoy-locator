@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='19';
+  var V='20';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -133,7 +133,7 @@ html, body {
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   flex-shrink: 0;
   z-index: 10;
 }
@@ -908,10 +908,7 @@ html, body {
       <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></div>
       <div class="nav-label" data-i18n="navHome">Főoldal</div>
     </button>
-    <button class="nav-btn" data-screen="beststop" onclick="navTo('beststop')">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></div>
-      <div class="nav-label" data-i18n="navBestStop">Best Stop</div>
-    </button>
+
     <button class="nav-btn" data-screen="checklist" onclick="navTo('checklist')">
       <div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><polyline points="8,12 11,15 16,9"/></svg></div>
       <div class="nav-label" data-i18n="navChecklist">Checklist</div>
