@@ -9,7 +9,7 @@
 <title>ConvoyLocator</title>
 <script>
 (function(){
-  var V='20';
+  var V='21';
   var prev=localStorage.getItem('cl_app_v');
   localStorage.setItem('cl_app_v',V);
   if(prev && prev!==V){ location.reload(true); }
@@ -433,6 +433,22 @@ html, body {
 .check-tick { font-size: 13px; color: white; display: none; }
 .checklist-item.checked .check-tick { display: block; }
 .check-text { font-size: 14px; line-height: 1.4; flex: 1; }
+.check-delete-btn {
+  background: none; border: none; padding: 4px 6px; cursor: pointer;
+  color: var(--danger); font-size: 17px; flex-shrink: 0; border-radius: 6px;
+  line-height: 1; align-self: center;
+}
+.check-delete-btn:active { background: var(--surface2); }
+.checklist-add-row {
+  display: flex; gap: 8px; padding: 10px 12px;
+  border-top: 1px solid var(--border); align-items: center;
+}
+.checklist-add-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 14px;
+  color: var(--text); outline: none;
+}
+.checklist-add-input:focus { border-color: var(--accent); }
 
 .notes-section {
   margin: 12px 16px 0;
@@ -801,7 +817,7 @@ html, body {
 
   <!-- ── Screen: Checklist ── -->
   <div class="screen hidden" id="s-checklist">
-    <div class="progress-bar-wrap">
+    <div class="progress-bar-wrap" style="display:flex;align-items:center;gap:10px">
       <div style="display:flex;flex-direction:column;gap:6px;flex:1">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span class="progress-text">Kész</span>
@@ -809,6 +825,7 @@ html, body {
         </div>
         <div class="progress-track"><div class="progress-fill" id="cl-fill" style="width:0%"></div></div>
       </div>
+      <button id="cl-edit-btn" class="btn btn-ghost" style="padding:8px 10px;font-size:17px;flex-shrink:0" onclick="toggleCheckEditMode()" title="Szerkesztés">✏️</button>
     </div>
     <div id="checklist-items"></div>
     <div class="notes-section">
@@ -1039,8 +1056,10 @@ const S = {
   shortcuts: [],
   chatId:    null,
   notes:     localStorage.getItem('cl_notes') || '',
-  checklist: JSON.parse(localStorage.getItem('cl_checks') || 'null'),
-  editId:    null,
+  checklist:     JSON.parse(localStorage.getItem('cl_checks') || 'null'),
+  checkItems:    null,
+  checkEditMode: false,
+  editId:        null,
   editField: null,
 };
 
@@ -1527,54 +1546,101 @@ function fmtDist(km) {
 
 // ── Checklist ─────────────────────────────────────────────────────────────────
 function initChecklist() {
-  if (!S.checklist) {
-    S.checklist = new Array(t('checks').length).fill(false);
+  if (!S.checkItems) {
+    const stored = localStorage.getItem('cl_custom_items');
+    if (stored) {
+      S.checkItems = JSON.parse(stored);
+    } else {
+      const defs  = t('checks');
+      const split = t('checkGroups')[0];
+      S.checkItems = defs.map((text, i) => ({ text, group: i < split ? 0 : 1 }));
+    }
+  }
+  // Migrate / init boolean state
+  const oldState = S.checklist;
+  if (!Array.isArray(oldState) || oldState.length !== S.checkItems.length) {
+    S.checklist = S.checkItems.map((_, i) => (Array.isArray(oldState) ? !!oldState[i] : false));
   }
   document.getElementById('notes-ta').value = S.notes;
 }
 
+function _renderCheckGroup(items, group, header) {
+  const edit = S.checkEditMode;
+  let h = `<div class="checklist-section"${group===1?' style="margin-top:10px"':''}>
+    <div class="checklist-section-header">${header}</div>`;
+  for (const {idx, text} of items) {
+    const checked = S.checklist[idx] ? 'checked' : '';
+    h += `<div class="checklist-item ${checked}" id="cli-${idx}">
+      <div class="check-box" onclick="toggleCheck(${idx})"><span class="check-tick">✓</span></div>
+      <div class="check-text" onclick="toggleCheck(${idx})">${text}</div>
+      ${edit ? `<button class="check-delete-btn" onclick="deleteCheckItem(${idx})">🗑</button>` : ''}
+    </div>`;
+  }
+  if (edit) {
+    h += `<div class="checklist-add-row">
+      <input class="checklist-add-input" id="cl-new-${group}" placeholder="Új elem neve…"
+        onkeydown="if(event.key==='Enter')addCheckItem(${group})">
+      <button class="btn btn-primary" style="padding:7px 12px;font-size:16px" onclick="addCheckItem(${group})">＋</button>
+    </div>`;
+  }
+  h += '</div>';
+  return h;
+}
+
 function renderChecklist() {
   initChecklist();
-  const checks = t('checks');
-  const groups = t('checkGroups');
-  const container = document.getElementById('checklist-items');
-  let html = '';
-  let inGroup = 0;
-
-  for (let i = 0; i < checks.length; i++) {
-    if (i === 0) {
-      html += `<div class="checklist-section">
-        <div class="checklist-section-header">${t('checkHome')}</div>`;
-    }
-    if (i === groups[0]) {
-      html += `</div><div class="checklist-section" style="margin-top:10px">
-        <div class="checklist-section-header">${t('checkTruck')}</div>`;
-    }
-    const checked = S.checklist[i] ? 'checked' : '';
-    html += `
-      <div class="checklist-item ${checked}" id="cli-${i}" onclick="toggleCheck(${i})">
-        <div class="check-box"><span class="check-tick">✓</span></div>
-        <div class="check-text">${i + 1}. ${checks[i]}</div>
-      </div>`;
-  }
-  html += '</div>';
-  container.innerHTML = html;
+  const homeItems  = S.checkItems.map((it,i)=>({...it,idx:i})).filter(it=>it.group===0);
+  const truckItems = S.checkItems.map((it,i)=>({...it,idx:i})).filter(it=>it.group===1);
+  document.getElementById('checklist-items').innerHTML =
+    _renderCheckGroup(homeItems,  0, t('checkHome')) +
+    _renderCheckGroup(truckItems, 1, t('checkTruck'));
   updateProgress();
+  const btn = document.getElementById('cl-edit-btn');
+  if (btn) { btn.textContent = S.checkEditMode ? '✅' : '✏️'; }
 }
 
 function toggleCheck(i) {
   S.checklist[i] = !S.checklist[i];
   const item = document.getElementById('cli-' + i);
-  item.classList.toggle('checked', S.checklist[i]);
+  if (item) item.classList.toggle('checked', S.checklist[i]);
   localStorage.setItem('cl_checks', JSON.stringify(S.checklist));
   updateProgress();
 }
 
 function updateProgress() {
-  const total = S.checklist.length;
-  const done  = S.checklist.filter(Boolean).length;
+  const total = (S.checklist || []).length;
+  const done  = (S.checklist || []).filter(Boolean).length;
   document.getElementById('cl-count').textContent = `${done}/${total}`;
-  document.getElementById('cl-fill').style.width = `${Math.round(done / total * 100)}%`;
+  document.getElementById('cl-fill').style.width = total ? `${Math.round(done/total*100)}%` : '0%';
+}
+
+function toggleCheckEditMode() {
+  S.checkEditMode = !S.checkEditMode;
+  renderChecklist();
+}
+
+function addCheckItem(group) {
+  const inp = document.getElementById(`cl-new-${group}`);
+  const text = (inp?.value || '').trim();
+  if (!text) return;
+  S.checkItems.push({ text, group });
+  S.checklist.push(false);
+  inp.value = '';
+  _saveCheckItems();
+  renderChecklist();
+  setTimeout(() => document.getElementById(`cl-new-${group}`)?.focus(), 50);
+}
+
+function deleteCheckItem(i) {
+  S.checkItems.splice(i, 1);
+  S.checklist.splice(i, 1);
+  _saveCheckItems();
+  renderChecklist();
+}
+
+function _saveCheckItems() {
+  localStorage.setItem('cl_custom_items', JSON.stringify(S.checkItems));
+  localStorage.setItem('cl_checks',       JSON.stringify(S.checklist));
 }
 
 function saveNotes() {
@@ -1599,8 +1665,8 @@ async function loadJournal() {
   try {
     const data = await api(`/api/journal/${S.chatId}`);
     S.journal = (data.entries || []).reverse();
-    renderJournal();
     updateKmSummary();
+    filterJournal();
   } catch (e) {
     document.getElementById('journal-list').innerHTML =
       `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Hiba: ${e.message}</div></div>`;
@@ -1706,19 +1772,36 @@ function entryMonth(e) {
   const d = (e.date || '').slice(0, 7);
   return /^\d{4}-\d{2}$/.test(d) ? d : null;
 }
+function _journalByMode() {
+  const entries = S.journal || [];
+  if (S.kmMode === 'week') {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const dow = now.getDay();
+    const mon = new Date(now); mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return entries.filter(e => { const d = _parseDatumInd(e); return d && d >= mon && d <= sun; });
+  }
+  if (S.kmMode === 'month') {
+    return entries.filter(e => entryMonth(e) === S.kmMonth);
+  }
+  return entries;
+}
+
 function setKmMode(mode) {
   S.kmMode = mode;
   ['week','month','all'].forEach(k =>
     document.getElementById(`km-tab-${k}`).classList.toggle('active', k === mode));
   document.getElementById('km-month').style.display = (mode === 'month') ? '' : 'none';
   updateKmSummary();
+  filterJournal();
 }
+
 function updateKmSummary() {
   const entries = S.journal || [];
   const sel = document.getElementById('km-month');
   if (!sel) return;
 
-  // Month selector (only needed for 'month' mode)
+  // Populate month selector
   const prevSelected = sel.value || S.kmMonth;
   const months = [...new Set(entries.map(entryMonth).filter(Boolean))].sort().reverse();
   const wanted = months.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -1728,33 +1811,22 @@ function updateKmSummary() {
   S.kmMonth = cur;
   sel.value = cur;
 
-  let total = 0;
-  if (S.kmMode === 'week') {
-    // Current ISO week Mon–Sun using _parseDatumInd
-    const now = new Date(); now.setHours(0,0,0,0);
-    const mon = new Date(now); mon.setDate(now.getDate() - now.getDay() + (now.getDay()===0 ? -6 : 1));
-    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-    total = entries.filter(e => {
-      const d = _parseDatumInd(e);
-      return d && d >= mon && d <= sun;
-    }).reduce((s, e) => s + parseKm(e.megtett_km), 0);
-  } else if (S.kmMode === 'month') {
-    total = entries.filter(e => entryMonth(e) === S.kmMonth)
-                   .reduce((s, e) => s + parseKm(e.megtett_km), 0);
-  } else {
-    total = entries.reduce((s, e) => s + parseKm(e.megtett_km), 0);
-  }
-  document.getElementById('km-total').textContent = total.toLocaleString('hu-HU') + ' km';
+  const filtered = _journalByMode();
+  const total = filtered.reduce((s, e) => s + parseKm(e.megtett_km), 0);
+  const count = filtered.length;
+  const kmStr = total.toLocaleString('hu-HU') + ' km';
+  document.getElementById('km-total').textContent =
+    (S.kmMode !== 'all') ? `${count} fuvar · ${kmStr}` : kmStr;
 }
 
 function filterJournal() {
+  const base = _journalByMode();
   const q = (document.getElementById('jrn-search')?.value || '').toLowerCase().trim();
-  if (!q) { renderJournal(S.journal); return; }
-  const filtered = S.journal.filter(e =>
+  if (!q) { renderJournal(base); return; }
+  renderJournal(base.filter(e =>
     [e.szallito, e.rendszam, e.sofor_neve, e.kisert_rsz, e.route, e.datum_ind, e.datum_erk, e.gmaps_route, e.notes]
       .some(v => v && v.toLowerCase().includes(q))
-  );
-  renderJournal(filtered);
+  ));
 }
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
